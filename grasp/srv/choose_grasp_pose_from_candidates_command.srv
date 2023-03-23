@@ -1,0 +1,6 @@
+string command
+geometry_msgs/PoseStamped truss_center
+geometry_msgs/PoseArray grasp_candidates
+sensor_msgs/PointCloud2 map
+---
+geometry_msgs/PoseStamped grasp_pose

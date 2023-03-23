@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+
+import sys
+
+from rqt_user_interface.rqt_user_interface import RqtPipeline
+from rqt_gui.main import Main
+
+plugin = 'rqt_user_interface' #
+main = Main(filename=plugin)
+sys.exit(main.main(standalone=plugin))

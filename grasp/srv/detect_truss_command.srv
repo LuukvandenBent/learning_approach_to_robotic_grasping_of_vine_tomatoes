@@ -1,0 +1,4 @@
+string command
+---
+geometry_msgs/PoseArray poses
+#[truss_center, truss_edge1, truss_edge2] 
