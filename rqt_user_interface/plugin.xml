@@ -1,0 +1,20 @@
+<library path="src">
+  <class name="Rqt Pipeline" type="rqt_user_interface.rqt_user_interface.RqtPipeline" base_class_type="rqt_gui_py::Plugin">
+    <description>
+      GUI for commanding the flex_grasp statemachine
+    </description>
+    <qtgui>
+      <!-- optional grouping...
+      <group>
+        <label>Group</label>
+      </group>
+      <group>
+        <label>Subgroup</label>
+      </group>
+      -->
+      <label>pipeline_commander</label>
+      <icon type="theme">system-help</icon>
+      <statustip>Grasping system.</statustip>
+    </qtgui>
+  </class>
+</library>

@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="robot_name"              default="panda"/>
+    <arg name="camera_frame"            default="camera_color_optical_frame"/>
+    <arg name="camera_fps"              default="5"/>
+
+	<param name="robot_name" type="str" value="$(arg robot_name)" />
+	<param name="camera_frame" type="str" value="$(arg camera_frame)" />
+	<param name="planning_frame" type="str" value="$(arg robot_name)_link0" />
+
+    <arg name="marker_frame1"           default="aruco_frame1"/>
+    <arg name="marker_frame2"           default="aruco_frame2"/>
+    <arg name="marker_size"             default="0.049" doc="Size of the ArUco marker used, in meters"/>
+    <arg name="marker_id1"              default="20" doc="The ID of the ArUco marker used"/>
+    <arg name="marker_id2"              default="25" doc="The ID of the ArUco marker used"/>
+    <arg name="gui_start_delay"         default="8"/>
+    
+    <!-- <include file="$(find calibrate)/launch/publish_calibration.launch"/>-->
+  
+  <group ns="$(arg robot_name)">
+    <node name="aruco_tracker" pkg="aruco_ros" type="double">
+   	    <remap from="/camera_info"      to="/$(arg robot_name)/camera/color/camera_info" />
+   	    <remap from="/image"            to="/$(arg robot_name)/camera/color/image_raw" />
+            
+   	    <param name="image_is_rectified" value="true"/>
+   	    <param name="normalizeImage" value="true"/>
+   	    <param name="dct_components_to_remove" value="2"/>
+   	    <param name="marker_size"        value="$(arg marker_size)"/>
+   	    <param name="marker_id1"          value="$(arg marker_id1)"/>
+   	    <param name="marker_id2"          value="$(arg marker_id2)"/>
+   	    <param name="parent_name"       value="$(arg camera_frame)"/>
+   	    <param name="child_name1"       value="$(arg marker_frame1)" />
+   	    <param name="child_name2"       value="$(arg marker_frame2)" />
+   	</node>
+  
+  	<include file="$(find realsense2_camera)/launch/rs_camera.launch">
+  		<arg name="align_depth" 	value="true"/>
+		<arg name="enable_pointcloud"	value="true"/>
+		<arg name="initial_reset"	value="true"/>
+		<arg name="depth_width"       value="848"/>
+      		<arg name="depth_height"      value="480"/>
+      		<arg name="depth_fps"         value="$(arg camera_fps)"/>
+      		<arg name="color_width"       value="848"/>
+      		<arg name="color_height"      value="480"/>
+      		<arg name="color_fps"         value="$(arg camera_fps)"/>
+		
+		
+  	</include>
+
+    <node name="plan_movement" pkg="grasp" type="plan_movement_node.py" output="screen"></node>
+  	
+    <node name="detect_truss" pkg="grasp" type="detect_truss_node.py" output="screen"></node>
+    
+    <node name="detect_truss_obb" pkg="grasp" type="detect_truss_obb_node.py" output="screen"></node>
+    
+    <node name="detect_truss_manual" pkg="grasp" type="detect_truss_manual_node.py" output="screen"></node>
+    
+    <!--<node name="determine_grasp_candidates_keypoints" pkg="grasp" type="determine_grasp_candidates_keypoints_node.py" output="screen"></node> -->
+    
+    <node name="determine_grasp_candidates_oriented_keypoint" pkg="grasp" type="determine_grasp_candidates_oriented_keypoint_node.py" output="screen"></node>
+    
+    <node name="determine_grasp_candidates_manual" pkg="grasp" type="determine_grasp_candidates_manual_node.py" output="screen"></node>
+    
+    <node name="choose_grasp_pose_from_candidates" pkg="grasp" type="choose_grasp_pose_from_candidates_node.py" output="screen"></node>
+  
+    <node name="pipeline" pkg="grasp" type="pipeline.py" output="screen"></node>
+  
+    <node name="rqt" pkg="rqt_user_interface" type="rqt_user_interface" output="screen" launch-prefix="bash -c 'sleep $(arg gui_start_delay); $0 $@' "></node>
+  	
+    <node name="map" pkg="pointcloud" type="pointcloud" output="screen"></node>
+    
+  </group>
+</launch>

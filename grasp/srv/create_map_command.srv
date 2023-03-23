@@ -1,0 +1,4 @@
+#[truss_center, truss_edge1, truss_edge2] 
+geometry_msgs/PoseArray poses
+---
+sensor_msgs/PointCloud2 map

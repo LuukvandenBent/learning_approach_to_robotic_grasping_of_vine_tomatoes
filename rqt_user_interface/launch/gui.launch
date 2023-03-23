@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="robot_name" default="panda"/>
+
+  <node name = "my_rqt_dashboard"
+    pkg = "rqt_gui"
+    type = "rqt_gui"
+    respawn = "false"
+    output = "screen"
+    ns = "$(arg robot_name)"
+    args = "--perspective-file $(find rqt_user_interface)/config/my_dashboard.perspective"/>
+
+</launch>
