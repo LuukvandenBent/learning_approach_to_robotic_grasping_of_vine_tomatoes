@@ -64,6 +64,12 @@ git clone https://github.com/LuukvandenBent/realsense-ros_d405_ros1.git
 git clone https://github.com/pal-robotics/aruco_ros.git
 git clone https://github.com/IFL-CAMP/easy_handeye.git
 ```
+
+install some dependecies
+```
+sudo apt-get install ros-$ROS_DISTRO-realsense2-camera
+```
+
 #### 1.2.3 Setup ROS MASTER
 To connect with the computer in the lab:
 ```
