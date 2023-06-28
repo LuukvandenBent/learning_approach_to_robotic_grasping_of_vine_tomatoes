@@ -27,17 +27,8 @@
 #include <pcl/ModelCoefficients.h>
 #include <pcl/filters/model_outlier_removal.h>
 
-#include <open3d/Open3D.h>
-#include <open3d/geometry/PointCloud.h>
-#include <open3d/geometry/KDTreeSearchParam.h>
-#include <open3d/geometry/RGBDImage.h>
-#include <open3d/pipelines/registration/Registration.h>
-//#include <open3d/geometry/TransformationEstimationPointToPlane.h>
-#include <open3d/pipelines/registration/ColoredICP.h>
-
 #include "grasp/create_map_command.h"
 #include "pointcloud/create_map_from_pointclouds.h"
-#include "pointcloud/convert_pcl_open3d.h"
 
 
 void Map::init(ros::NodeHandle n){
@@ -207,35 +198,6 @@ void Map::cloud_cb(const boost::shared_ptr<const sensor_msgs::PointCloud2>& inpu
     sor.filter(*cloud_filtered);
 
     *cloud_final = *cloud_filtered;
-
-    //todo fix icp fow now turned off!!!
-    if (aligned_pointclouds.size() >= 1 && false){//Add icp with respect to first cloud for better allignment
-        //Convert to Open3D format since they have a ICP algorithm which uses RGB info!!!
-        std::shared_ptr<open3d::geometry::PointCloud> source_cloud = pcl_to_open3d(cloud_filtered);
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr first_pointcloud_ptr(new pcl::PointCloud<pcl::PointXYZRGB>);
-        *first_pointcloud_ptr = aligned_pointclouds[0];
-        std::shared_ptr<open3d::geometry::PointCloud> target_cloud = pcl_to_open3d(first_pointcloud_ptr);
-
-         // Perform colored ICP registration using Open3D
-        source_cloud->VoxelDownSample(voxel_size);
-        target_cloud->VoxelDownSample(voxel_size);
-
-        source_cloud->EstimateNormals(open3d::geometry::KDTreeSearchParamHybrid(voxel_size * 2.f, 30));//Calculate surface normals for point to plane icp
-        target_cloud->EstimateNormals(open3d::geometry::KDTreeSearchParamHybrid(voxel_size * 2.f, 30));
-
-        open3d::pipelines::registration::ICPConvergenceCriteria icp_criteria;
-        icp_criteria.max_iteration_ = 100;
-
-
-        auto colored_icp = open3d::pipelines::registration::RegistrationColoredICP(*source_cloud, *target_cloud, voxel_size*3, Eigen::Matrix4d::Identity(), open3d::pipelines::registration::TransformationEstimationForColoredICP(), icp_criteria);
-        auto transformation = colored_icp.transformation_;
-        source_cloud->Transform(transformation);
-        //Transform back to pcl
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filtered_icp = open3d_to_pcl(source_cloud);
-
-        *cloud_final = *cloud_filtered_icp;
-
-    }
 
     aligned_pointclouds.push_back(*cloud_final);
 }
