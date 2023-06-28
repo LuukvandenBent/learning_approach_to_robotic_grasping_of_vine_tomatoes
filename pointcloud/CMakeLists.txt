@@ -166,11 +166,6 @@ link_directories(${PCL_LIBRARY_DIRS})
    ${PCL_LIBRARIES}
 
  )
-target_link_libraries(pointcloud_convert
-   ${catkin_LIBRARIES}
-   ${PCL_LIBRARIES}
- )
- 
  
 
 #############
