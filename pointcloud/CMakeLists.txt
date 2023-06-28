@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(pointcloud)
 
-set(PCL_DIR "/usr/lib/x86_64-linux-gnu/cmake/pcl/")
-
 # see here: https://github.com/PointCloudLibrary/pcl/issues/3680
 # when this is fixed, we can remove the following 3 lines.
 #if(NOT DEFINED CMAKE_SUPPRESS_DEVELOPER_WARNINGS)
