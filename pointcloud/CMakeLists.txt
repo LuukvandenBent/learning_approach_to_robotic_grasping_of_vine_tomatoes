@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.0.2)
 project(pointcloud)
 
 set(PCL_DIR "/usr/lib/x86_64-linux-gnu/cmake/pcl/")
-set(Open3D_DIR "/usr/local/lib/cmake/Open3D/")
 
 # see here: https://github.com/PointCloudLibrary/pcl/issues/3680
 # when this is fixed, we can remove the following 3 lines.
@@ -23,7 +22,6 @@ find_package(catkin REQUIRED COMPONENTS
   PCL
   pcl_ros
   grasp
-  Open3D
 )
 
 ## System dependencies are found with CMake's conventions
@@ -149,7 +147,6 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(pointcloud src/create_map_from_pointclouds.cpp)
-add_library(pointcloud_convert src/convert_pcl_open3d.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -162,21 +159,16 @@ add_library(pointcloud_convert src/convert_pcl_open3d.cpp)
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 link_directories(${PCL_LIBRARY_DIRS})
-#link_directories(${OPEN3D_LIBRARY_DIRS})
 
 ## Specify libraries to link a library or executable target against
  target_link_libraries(pointcloud
    ${catkin_LIBRARIES}
    ${PCL_LIBRARIES}
-   ${Open3D_LIBRARIES}
-   Open3D::Open3D
-   pointcloud_convert
+
  )
 target_link_libraries(pointcloud_convert
    ${catkin_LIBRARIES}
    ${PCL_LIBRARIES}
-   ${Open3D_LIBRARIES}
-   Open3D::Open3D
  )
  
  
