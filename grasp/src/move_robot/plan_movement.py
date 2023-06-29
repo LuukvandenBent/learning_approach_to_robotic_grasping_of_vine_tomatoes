@@ -203,7 +203,7 @@ class Planner(object):
                     return self.go_to_pose(goal_pose=flipped_goal_pose, move_group=move_group)#retry flipped
                 else:
                     return 'failure'
-            move_group.execute(plan_msg=plan, wait=True)
+            move_group.execute(plan, wait=True)
             move_group.stop()
             move_group.clear_pose_targets()
         
