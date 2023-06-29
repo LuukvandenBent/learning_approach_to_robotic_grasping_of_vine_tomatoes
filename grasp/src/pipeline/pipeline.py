@@ -32,7 +32,7 @@ class Idle(smach.State):
         self.node_name = NODE_NAME
         self.rqt_service = rospy.Service('rqt_service', pipeline_command, self.set_next_state)
         self.next_state = None
-        self.full_pipeline = ["detect_truss_obb", "go_to_truss", "create_map", "determine_grasp_candidates_keypoints", "choose_grasp_pose_from_candidates_random", "grasp", "go_to_center", "open_gripper", "check_grasp_success", "go_to_saved_pose"]
+        self.full_pipeline = ["detect_truss_obb", "go_to_truss", "create_map", "determine_grasp_candidates_oriented_keypoint", "choose_grasp_pose_from_candidates_random", "grasp", "go_to_center", "open_gripper", "check_grasp_success", "go_to_saved_pose"]
         self.execute_full_pipeline = False
         self.execute_full_pipeline_from_start = False   
         self.execute_full_pipeline_repeat = False                 
