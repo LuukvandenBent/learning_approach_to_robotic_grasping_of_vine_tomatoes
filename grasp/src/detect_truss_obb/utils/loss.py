@@ -211,7 +211,7 @@ class ComputeLoss:
         # ttheta, tgaussian_theta = [], []
         tgaussian_theta = []
         # gain = torch.ones(7, device=targets.device)  # normalized to gridspace gain
-        feature_wh = torch.ones(2, device=targets.device)  # feature_wh
+        feature_wh = torch.ones(2, device=targets.device).long()  # feature_wh
         ai = torch.arange(na, device=targets.device).float().view(na, 1).repeat(1, nt)  # same as .repeat_interleave(nt)
         # targets (tensor): (n_gt_all_batch, c) -> (na, n_gt_all_batch, c) -> (na, n_gt_all_batch, c+1)
         # targets (tensor): (na, n_gt_all_batch, [img_index, clsid, cx, cy, l, s, theta, gaussian_θ_labels, anchor_index]])
