@@ -192,20 +192,21 @@ class Planner(object):
                     return 'failure'
 
             move_group.set_planner_id("LIN")
-            move_group.set_max_acceleration_scaling_factor(0.5)
-            move_group.set_max_velocity_scaling_factor(1)
+            move_group.set_max_acceleration_scaling_factor(0.3)
+            move_group.set_max_velocity_scaling_factor(0.7)
             move_group.set_pose_target(goal_pose)
             success, plan, _, _ = move_group.plan()
             print("PLANNING WAS : ", success)
-            if not success:
+            if not success and goal_pose != self.saved_pose_ee:
                 if allow_flip:
                     flipped_goal_pose = flip_z_rotation_stamped_pose(goal_pose)
                     return self.go_to_pose(goal_pose=flipped_goal_pose, move_group=move_group)#retry flipped
                 else:
                     return 'failure'
-            move_group.execute(plan, wait=True)
-            move_group.stop()
-            move_group.clear_pose_targets()
+            elif success:
+                move_group.execute(plan, wait=True)
+                move_group.stop()
+                move_group.clear_pose_targets()
         
         elif controller == "impedance":
             if move_group != self.move_group_ee:
