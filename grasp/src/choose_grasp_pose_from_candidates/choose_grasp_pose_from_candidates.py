@@ -52,7 +52,7 @@ class ChooseGraspPoseFromCandidates():
         
         model = importlib.import_module("encoder")
         checkpoint = torch.load(os.path.join(BASE_DIR, 'weights/depth_image_encoder.pth'), map_location='cpu')
-        self.depth_image_encoder = model.Encoder(in_channels=1, encoded_space_dim=20, input_size=128)
+        self.depth_image_encoder = model.Encoder(in_channels=1, encoded_space_dim=30, input_size=128)
         self.depth_image_encoder = self.depth_image_encoder#.cuda()
         self.depth_image_encoder.load_state_dict(checkpoint)
         self.depth_image_encoder.eval() 
@@ -125,7 +125,7 @@ class ChooseGraspPoseFromCandidates():
         elif self.classifier == "depth_image":
             print("Classifying the depth images")
             with torch.no_grad():
-                image_batch = points = torch.Tensor(np.array(depth_images).astype(np.float32))#.cuda()
+                image_batch = torch.Tensor(np.array(depth_images).astype(np.float32))#.cuda()
                 image_batch = image_batch.transpose(3,1)
                 latent_space = self.depth_image_encoder(image_batch)
                 latent_space = latent_space.cpu().detach().numpy()
