@@ -83,7 +83,7 @@ class Planner(object):
         table = create_collision_object(robot=self.robot, id='table', dimensions=[1.5, 1.5, 0.02], pose=[0.85, 0, -0.05])#Add limits for table and wall
         wall = create_collision_object(robot=self.robot, id='wall', dimensions=[0.02, 1, 1], pose=[-0.4, 0, 0.5])#Add limits for table and wall
 
-        self.scene.add_object(table)
+        #self.scene.add_object(table)
         self.scene.add_object(wall)
         
         for move_group in [self.move_group, self.move_group_ee, self.move_group_camera]:
@@ -253,7 +253,7 @@ class Planner(object):
             pre_grasp_pose = copy.deepcopy(supplied_grasp_pose)
             pre_grasp_pose.pose.position.z = pre_grasp_pose.pose.position.z + 0.02
             grasp_pose = copy.deepcopy(supplied_grasp_pose)
-            grasp_pose.pose.position.z = grasp_pose.pose.position.z - 4*self.vine_radius#Account for width of vine + little extra
+            grasp_pose.pose.position.z = grasp_pose.pose.position.z# - 4*self.vine_radius#Account for width of vine + little extra
             if self.go_to_pose(goal_pose=pre_grasp_pose, move_group=self.move_group_ee, allow_flip=True) == "success":#Go to pre grasp pose
                 if self.go_to_pose(goal_pose=grasp_pose, move_group=self.move_group_ee, controller = "impedance") == "success":#Go to grasp pose
                     if self.close_gripper() == "success":#Grasp
@@ -291,9 +291,9 @@ class Planner(object):
     def close_gripper(self):
         self.gripper_grasp_action.wait_for_server()
         gripper = franka_gripper.msg.GraspGoal()
-        gripper.width = 0#self.vine_radius*2
-        gripper.epsilon.inner = self.vine_radius
-        gripper.epsilon.outer = self.vine_radius*4
+        gripper.width = 0.001
+        gripper.epsilon.inner = 0.001
+        gripper.epsilon.outer = 0.04
         gripper.speed = 0.005
         gripper.force = 40
 
