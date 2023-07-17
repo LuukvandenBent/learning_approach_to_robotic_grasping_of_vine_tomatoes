@@ -148,7 +148,7 @@ class ChooseGraspPoseFromCandidates():
         if numpy_rgb is None:
             numpy_rgb = np.zeros(np.shape(numpy_xyz))
         #Todo assert pointcloud and grasp pose have same frame_id
-        max_distance = 0.02
+        max_distance = 0.05
         if grasp_pose is not None:
             numpy_xyz[:,0] -= grasp_pose.pose.position.x#Center around grasp_pose
             numpy_xyz[:,1] -= grasp_pose.pose.position.y
