@@ -207,7 +207,6 @@ class ChooseGraspPoseFromCandidates():
                 rgb_image = cv2.putText(rgb_image, str(np.around(np.e**confidence[i, 0].item(), 2)), (image_x, image_y-30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,0), 1, cv2.LINE_AA)
             #todo also draw the angle?
         ros_image_msg = self.bridge.cv2_to_imgmsg(rgb_image, encoding="rgb8")
-        time = rospy.get_time()
         self.grasp_pose_debug_pub.publish(ros_image_msg)
     
     def move_unlabeled_pointclouds(self, skip):
