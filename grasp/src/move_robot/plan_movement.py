@@ -156,15 +156,16 @@ class Planner(object):
         elif movement == 'check_grasp_success':
             return self.check_grasp_success()
 
-        goal, move_group, allow_flip = self.find_goal_pose(movement=movement)
+        goal, move_group, allow_flip, retry_with_impedance = self.find_goal_pose(movement=movement)
 
-        return self.go_to_pose(goal, move_group, allow_flip=allow_flip)
+        return self.go_to_pose(goal, move_group, allow_flip=allow_flip, retry_with_impedance=retry_with_impedance)
 
     def find_goal_pose(self, movement=None):
         goal_pose = PoseStamped()
         goal_pose.header.frame_id = self.planning_frame
         move_group = self.move_group_ee
         allow_flip = False
+        retry_with_impedance = False
 
         if movement == 'go_to_saved_pose':
             self.open_gripper()
@@ -189,6 +190,7 @@ class Planner(object):
             goal_pose = copy.deepcopy(self.saved_pose_ee_place)
             goal_pose.pose.position.z = goal_pose.pose.position.z + 0.25
             allow_flip = True
+            retry_with_impedance
         
         elif movement == 'go_to_truss':
             move_group = self.move_group_camera
@@ -199,11 +201,11 @@ class Planner(object):
         else:
             goal_pose = move_group.get_current_pose()
 
-        return goal_pose, move_group, allow_flip
+        return goal_pose, move_group, allow_flip, retry_with_impedance
 
 
     # control robot to desired goal position
-    def go_to_pose(self, goal_pose, move_group, controller="position", allow_flip=False):
+    def go_to_pose(self, goal_pose, move_group, controller="position", allow_flip=False, retry_with_impedance=False, speed=1):#speed for impedance
         if goal_pose == None:
             return 'failure'
         
@@ -212,12 +214,17 @@ class Planner(object):
                 switched = self.switch_controller(controller)
                 if not switched:
                     return 'failure'
-
+            move_group.set_planning_pipeline_id("pilz_industrial_motion_planner")
             move_group.set_planner_id("LIN")
             move_group.set_max_acceleration_scaling_factor(0.3)
             move_group.set_max_velocity_scaling_factor(0.7)
             move_group.set_pose_target(goal_pose)
-            success, plan, _, _ = move_group.plan()
+            success, plan, _, error = move_group.plan()
+            if retry_with_impedance and not success:#Try again with impedance
+                print("Could not plan LIN due to: ", error, "retrying with impedance")
+                return self.go_to_pose(goal_pose=goal_pose, move_group=move_group, controller="impedance", speed=10)
+                    
+
             print("PLANNING WAS : ", success)
             if not success and goal_pose != self.saved_pose_ee:
                 if allow_flip:
@@ -241,7 +248,7 @@ class Planner(object):
                 start_pose = move_group.get_current_pose()
                 if not all_close(start_pose, goal_pose, 0.1, only_check_angle=True):
                     goal_pose = flip_z_rotation_stamped_pose(goal_pose)
-                self.cartesian_go_to_pose(start_pose=start_pose, goal_pose=goal_pose)
+                self.cartesian_go_to_pose(start_pose=start_pose, goal_pose=goal_pose, speed=speed)
                 return 'success'
     
         else:
@@ -389,18 +396,19 @@ class Planner(object):
         start_controllers = [possible_controllers[new_controller]]
         possible_controllers.pop(new_controller)#Remove from dict to access the other controller
         stop_controllers = [next(iter(possible_controllers.values()))]
-        resp = self.switch_controller_service(start_controllers=start_controllers, stop_controllers=stop_controllers, strictness=1, start_asap=False, timeout=0.0)
+        resp = self.switch_controller_service(start_controllers=start_controllers, stop_controllers=stop_controllers, strictness=1, start_asap=False, timeout=0)
         if resp.ok:
             self.controller_running = new_controller
         return resp.ok
     
-    def cartesian_go_to_pose(self, start_pose, goal_pose):#from https://github.com/franzesegiovanni/franka_human_friendly_controllers/blob/master/python/LfD/Learning_from_demonstration.py
+    def cartesian_go_to_pose(self, start_pose, goal_pose, speed=1):#from https://github.com/franzesegiovanni/franka_human_friendly_controllers/blob/master/python/LfD/Learning_from_demonstration.py
+        assert speed < 11, "Attempt at too fast impedance control"
         start = np.array([start_pose.pose.position.x, start_pose.pose.position.y, start_pose.pose.position.z]) 
         start_ori = np.array([start_pose.pose.orientation.w, start_pose.pose.orientation.x, start_pose.pose.orientation.y, start_pose.pose.orientation.z]) 
         goal_=np.array([goal_pose.pose.position.x, goal_pose.pose.position.y, goal_pose.pose.position.z])
         squared_dist = np.sum(np.subtract(start, goal_)**2, axis=0)
         dist = np.sqrt(squared_dist)
-        interp_dist = 0.001  # [m]
+        interp_dist = 0.001*speed  # [m]
         step_num_lin = int(np.floor(dist / interp_dist))
         q_start=np.quaternion(start_ori[0], start_ori[1], start_ori[2], start_ori[3])
         q_goal=np.quaternion(goal_pose.pose.orientation.w, goal_pose.pose.orientation.x, goal_pose.pose.orientation.y, goal_pose.pose.orientation.z)
@@ -412,7 +420,7 @@ class Planner(object):
             q_start.w=-q_start.w
         inner_prod=np.clip(q_start.x*q_goal.x+q_start.y*q_goal.y+q_start.z*q_goal.z+q_start.w*q_goal.w, -1, 1)
         theta= np.arccos(np.abs(inner_prod))
-        interp_dist_polar = 0.001 
+        interp_dist_polar = 0.001*speed
         step_num_polar = int(np.floor(theta / interp_dist_polar))
         step_num=np.max([step_num_polar,step_num_lin])
         
@@ -434,8 +442,11 @@ class Planner(object):
         goal.pose.orientation.w = quat.w
 
         self.cartesian_pose_pub.publish(goal)
-
-        self.set_stiffness(3000, 3000, 1000, 30, 30, 5, 0)#XYZRPY
+        
+        if speed > 1:#normal moving
+            self.set_stiffness(500, 500, 500, 10, 10, 10, 5)#XYZRPY
+        else:
+            self.set_stiffness(3000, 3000, 1000, 30, 30, 5, 5)#XYZRPY
 
         rate = rospy.Rate(20)
         goal = PoseStamped()
