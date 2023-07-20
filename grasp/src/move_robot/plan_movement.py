@@ -286,14 +286,14 @@ class Planner(object):
         supplied_grasp_pose = self.grasp_pose
         if self.pre_grasp_gripper() == "success":#Open the gripper
             pre_grasp_pose = copy.deepcopy(supplied_grasp_pose)
-            pre_grasp_pose.pose.position.z = pre_grasp_pose.pose.position.z + 0.02
+            pre_grasp_pose.pose.position.z = pre_grasp_pose.pose.position.z + 0.03
             grasp_pose = copy.deepcopy(supplied_grasp_pose)
-            grasp_pose.pose.position.z = grasp_pose.pose.position.z# - 4*self.vine_radius#Account for width of vine + little extra
+            grasp_pose.pose.position.z = grasp_pose.pose.position.z - 0.01# + little extra
             if self.go_to_pose(goal_pose=pre_grasp_pose, move_group=self.move_group_ee, allow_flip=True) == "success":#Go to pre grasp pose
                 if self.go_to_pose(goal_pose=grasp_pose, move_group=self.move_group_ee, controller = "impedance") == "success":#Go to grasp pose
                     if self.close_gripper() == "success":#Grasp
                         post_grasp_pose = copy.deepcopy(supplied_grasp_pose)
-                        post_grasp_pose.pose.position.z = post_grasp_pose.pose.position.z + 0.2
+                        post_grasp_pose.pose.position.z = post_grasp_pose.pose.position.z + 0.25
                         return self.go_to_pose(goal_pose=post_grasp_pose, move_group=self.move_group_ee, allow_flip=True)#retreat
         return "failure"
     
