@@ -49,6 +49,7 @@ class RqtPipeline(Plugin):
         self._widget.CreateCrate.clicked[bool].connect(lambda: self.send_command_to_pipeline("create_crate"))
         self._widget.GoToSavedPose.clicked[bool].connect(lambda: self.send_command_to_pipeline("go_to_saved_pose"))
         self._widget.SavePose.clicked[bool].connect(lambda: self.send_command_to_pipeline("save_pose"))
+        self._widget.SavePosePlace.clicked[bool].connect(lambda: self.send_command_to_pipeline("save_pose_place"))
         self._widget.DetectTruss.clicked[bool].connect(lambda: self.send_command_to_pipeline("detect_truss"))
         self._widget.DetectTrussOBB.clicked[bool].connect(lambda: self.send_command_to_pipeline("detect_truss_obb"))
         self._widget.DetectTrussManual.clicked[bool].connect(lambda: self.send_command_to_pipeline("detect_truss_manual"))
@@ -66,6 +67,7 @@ class RqtPipeline(Plugin):
         self._widget.PreGraspGripper.clicked[bool].connect(lambda: self.send_command_to_pipeline("pre_grasp_gripper"))
         self._widget.CloseGripper.clicked[bool].connect(lambda: self.send_command_to_pipeline("close_gripper"))
         self._widget.ExecuteFullPipeline.clicked[bool].connect(lambda: self.send_command_to_pipeline("execute_full_pipeline"))
+        self._widget.ExecuteFullPipelineCrate.clicked[bool].connect(lambda: self.send_command_to_pipeline("execute_full_pipeline_crate"))
         self._widget.ToggleExecuteFullPipelineRepeat.clicked[bool].connect(lambda: self.send_command_to_pipeline("toggle_execute_full_pipeline_repeat"))
     
     def send_command_to_pipeline(self, command):

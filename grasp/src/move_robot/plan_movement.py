@@ -131,7 +131,12 @@ class Planner(object):
             print('Current pose is saved')
             return "success"
         
-        if movement == 'create_crate':
+        elif movement == 'save_pose_place':
+            self.saved_pose_ee_place = self.move_group_ee.get_current_pose()
+            print('Current place pose is saved')
+            return "success"
+        
+        elif movement == 'create_crate':
             return self.create_crate_collision_object()
         
         elif movement == 'open_gripper':
@@ -166,6 +171,21 @@ class Planner(object):
         elif movement == 'go_to_center':
             goal_pose = copy.deepcopy(self.saved_pose_ee)
             goal_pose.pose.position.z = 0.1
+        
+        elif movement == 'go_to_place_above':
+            goal_pose = copy.deepcopy(self.saved_pose_ee_place)
+            goal_pose.pose.position.z = self.move_group_ee.get_current_pose().pose.position.z
+            allow_flip = True
+            retry_with_impedance = True
+            
+        elif movement == 'go_to_place':
+            goal_pose = copy.deepcopy(self.saved_pose_ee_place)
+            allow_flip = True
+            retry_with_impedance
+        
+        elif movement == 'go_to_place_retreat':
+            goal_pose = copy.deepcopy(self.saved_pose_ee_place)
+            goal_pose.pose.position.z = goal_pose.pose.position.z + 0.25
             allow_flip = True
         
         elif movement == 'go_to_truss':

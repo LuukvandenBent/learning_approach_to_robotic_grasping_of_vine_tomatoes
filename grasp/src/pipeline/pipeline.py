@@ -32,9 +32,12 @@ class Idle(smach.State):
         self.node_name = NODE_NAME
         self.rqt_service = rospy.Service('rqt_service', pipeline_command, self.set_next_state)
         self.next_state = None
-        self.full_pipeline = ["detect_truss_obb", "go_to_truss", "create_map", "determine_grasp_candidates_oriented_keypoint", "choose_grasp_pose_from_candidates_random", "grasp", "go_to_center", "open_gripper", "check_grasp_success", "go_to_saved_pose"]
+        self.full_pipeline = ["detect_truss_obb", "go_to_truss", "create_map", "determine_grasp_candidates_oriented_keypoint", "choose_grasp_pose_from_candidates_center", "grasp", "go_to_center", "open_gripper", "check_grasp_success", "go_to_saved_pose"]
+        self.full_pipeline_crate = ["detect_truss_obb", "go_to_truss", "create_map", "determine_grasp_candidates_oriented_keypoint", "choose_grasp_pose_from_candidates_center", "grasp", "go_to_place_above", "go_to_place", "open_gripper", "check_grasp_success", "go_to_place_retreat", "go_to_saved_pose"]
         self.execute_full_pipeline = False
-        self.execute_full_pipeline_from_start = False   
+        self.execute_full_pipeline_from_start = False
+        self.execute_full_pipeline_crate = False
+        self.execute_full_pipeline_crate_from_start = False   
         self.execute_full_pipeline_repeat = False                 
     
     def set_next_state(self, command):
@@ -42,6 +45,9 @@ class Idle(smach.State):
         if command.command == "execute_full_pipeline":
             self.execute_full_pipeline = True
             self.execute_full_pipeline_from_start = True
+        elif command.command == "execute_full_pipeline_crate":
+            self.execute_full_pipeline_crate = True
+            self.execute_full_pipeline_crate_from_start = True
         elif command.command == "toggle_execute_full_pipeline_repeat":
             self.execute_full_pipeline_repeat = not self.execute_full_pipeline_repeat
         else:
@@ -74,12 +80,38 @@ class Idle(smach.State):
                 if index is not None:
                     self.next_state = self.full_pipeline[index]
                     print("NEXT STATE :", self.next_state)
+            
+            elif self.execute_full_pipeline_crate:#Logic for automatically doing the pipeline
+                if not userdata.success:
+                    self.next_state = self.full_pipeline_crate[-1]#if something went wrong during the full pipeline, go back to saved pose
+                    if self.execute_full_pipeline_repeat:
+                        self.execute_full_pipeline_crate_from_start = True
+                    else:
+                        self.execute_full_pipeline_crate = False
+                        self.execute_full_pipeline_crate_from_start = False
+                    break
+                index = 0#Start at index 0
+                if not self.execute_full_pipeline_crate_from_start:
+                    if userdata.prev_command in self.full_pipeline_crate:#If a previous state was part of the pipeline, start there
+                        index = self.full_pipeline_crate.index(userdata.prev_command)+1
+                    if index == len(self.full_pipeline_crate):#if last action in pipeline
+                        if self.execute_full_pipeline_repeat:#If repeat start again
+                            index = 0
+                        else:#Else stop
+                            index = None
+                            self.execute_full_pipeline_crate = False
+                            userdata.prev_command = None
+                self.execute_full_pipeline_crate_from_start = False
+                if index is not None:
+                    self.next_state = self.full_pipeline_crate[index]
+                    print("NEXT STATE :", self.next_state)
             rospy.sleep(0.1)#Sleep to allow time for different things
         next_state = copy.deepcopy(self.next_state)
         self.next_state = None
         userdata.command = next_state
-        #Todo group same returns together
-        if (next_state == "create_crate" or next_state == "save_pose" or next_state == "go_to_saved_pose" or next_state == "go_to_center" or next_state == "go_to_truss"
+
+        if (next_state == "create_crate" or next_state == "save_pose" or next_state == "save_pose_place" or next_state == "go_to_saved_pose" or next_state == "go_to_center" 
+            or next_state == "go_to_place_above" or next_state == "go_to_place" or next_state == "go_to_place_retreat" or next_state == "go_to_truss"
             or next_state == "grasp" or next_state == "check_grasp_success" or next_state == "open_gripper" or next_state == "pre_grasp_gripper" or next_state == "close_gripper"):
             return 'move'
         elif next_state == "detect_truss":
@@ -352,7 +384,7 @@ class MoveRobot(smach.State):
 
     def execute(self, userdata):
         rospy.logdebug('Executing state Move Robot, command: ', userdata.command)
-        possible_commands = ["create_crate", "save_pose", "go_to_saved_pose", "go_to_truss", "grasp", "go_to_center", "check_grasp_success", "open_gripper", "pre_grasp_gripper","close_gripper"]
+        possible_commands = ["create_crate", "save_pose", "save_pose_place", "go_to_saved_pose", "go_to_truss", "grasp", "go_to_center", "go_to_place_above", "go_to_place", "go_to_place_retreat", "check_grasp_success", "open_gripper", "pre_grasp_gripper","close_gripper"]
         if userdata.command in possible_commands:
             #Set relevant data
             if userdata.command == "go_to_truss":
