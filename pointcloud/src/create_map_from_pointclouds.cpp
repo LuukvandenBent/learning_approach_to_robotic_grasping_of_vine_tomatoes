@@ -1,4 +1,5 @@
 #include "ros/ros.h"
+#include <ros/package.h>
 #include "std_msgs/String.h"
 #include "sensor_msgs/PointCloud2.h"
 #include "geometry_msgs/Point.h"
@@ -26,6 +27,9 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/ModelCoefficients.h>
 #include <pcl/filters/model_outlier_removal.h>
+#include <pcl/io/ply_io.h>
+
+#include <cstdlib>
 
 #include "grasp/create_map_command.h"
 #include "pointcloud/create_map_from_pointclouds.h"
@@ -113,6 +117,25 @@ void Map::cloud_cb(const boost::shared_ptr<const sensor_msgs::PointCloud2>& inpu
     }
 
     pcl_ros::transformPointCloud(*temp_cloud, *cloud_transformed, transform);
+
+    std::string packageName = "grasp";
+    std::string graspPackagePath = ros::package::getPath(packageName);
+    size_t pos = graspPackagePath.find_last_of("/\\");//Find parent
+    graspPackagePath = graspPackagePath.substr(0, pos);
+    pos = graspPackagePath.find_last_of("/\\");//Find parent
+    graspPackagePath = graspPackagePath.substr(0, pos);
+    pos = graspPackagePath.find_last_of("/\\");//Find parent
+    graspPackagePath = graspPackagePath.substr(0, pos);
+
+    std::string map_dir = "/experiments/map/";
+    std::string full_map_dir = graspPackagePath + map_dir;
+
+    std::string command = "mkdir -p " + full_map_dir;
+
+    std::cout << command << std::endl;
+    system(command.c_str());
+
+    pcl::io::savePCDFile(full_map_dir + "raw.pcd", *cloud_transformed);
     //Crop region of interest of truss based on the detected bbox
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr roi(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr hull(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -159,6 +182,7 @@ void Map::cloud_cb(const boost::shared_ptr<const sensor_msgs::PointCloud2>& inpu
         if (!cloud_filtered->size()){//If no points left, something went wrong... return
             return;
         }
+    pcl::io::savePCDFile(full_map_dir + "bbox_filtered.pcd", *cloud_filtered);
     //Find the plane and then filter based on depth from this plane
     pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
     pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
@@ -188,8 +212,6 @@ void Map::cloud_cb(const boost::shared_ptr<const sensor_msgs::PointCloud2>& inpu
         std::cerr << "Plane could not be found... Something wrong with the pc ";
         return;
     }
-
-
     //Add StatisticalOutlierRemoval
     pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> sor;
     sor.setInputCloud(cloud_filtered);
@@ -197,6 +219,7 @@ void Map::cloud_cb(const boost::shared_ptr<const sensor_msgs::PointCloud2>& inpu
     sor.setStddevMulThresh(1.0);
     sor.filter(*cloud_filtered);
 
+    pcl::io::savePCDFile(full_map_dir + "depth_filtered.pcd", *cloud_filtered);
     *cloud_final = *cloud_filtered;
 
     aligned_pointclouds.push_back(*cloud_final);

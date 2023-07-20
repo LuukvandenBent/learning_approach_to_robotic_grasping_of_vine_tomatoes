@@ -315,9 +315,9 @@ class Planner(object):
             rospack = rospkg.RosPack()
             grasp_pckg_dir = rospack.get_path('grasp')
             catkin_ws_dir = os.path.dirname(os.path.dirname(os.path.dirname(grasp_pckg_dir)))
-            pointcloud_dir = os.path.join(catkin_ws_dir, "data_pointnet/pointcloud")
-            pointcloud_success_dir = os.path.join(catkin_ws_dir, "data_pointnet/pointcloud/success")
-            pointcloud_failure_dir = os.path.join(catkin_ws_dir, "data_pointnet/pointcloud/failure")
+            pointcloud_dir = os.path.join(catkin_ws_dir, "experiments/pointcloud")
+            pointcloud_success_dir = os.path.join(pointcloud_dir, "success")
+            pointcloud_failure_dir = os.path.join(pointcloud_dir, "failure")
             if not os.path.exists(pointcloud_success_dir):
                 os.makedirs(pointcloud_success_dir)
             if not os.path.exists(pointcloud_failure_dir):

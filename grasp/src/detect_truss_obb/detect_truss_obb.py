@@ -7,6 +7,9 @@ from cv_bridge import CvBridge
 import tf2_ros
 import copy
 import tf2_geometry_msgs
+import rospkg
+import shutil
+import datetime
 from geometry_msgs.msg import PoseArray, Pose, PoseStamped
 from sensor_msgs.msg import Image, CameraInfo
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
@@ -88,16 +91,31 @@ class DetectTrussOBB():
         preprocessed_image = cv2.copyMakeBorder(rgb_image, pad_size, pad_size, 0, 0, cv2.BORDER_CONSTANT, None, 0)
         image_scale = preprocessed_image.shape[0]/image_size
         preprocessed_image = cv2.resize(preprocessed_image, (image_size,image_size), interpolation = cv2.INTER_AREA)
+        
+        preprocessed_image_depth = cv2.copyMakeBorder(depth_image, pad_size, pad_size, 0, 0, cv2.BORDER_CONSTANT, None, 0)
+        preprocessed_image_depth = cv2.resize(preprocessed_image_depth, (image_size,image_size), interpolation = cv2.INTER_AREA)
         #Run model
         results = self.model(preprocessed_image)#, augment=True)
         bboxes = results.pred[0].cpu().numpy()
         
-        self.publish_debug_image(debug_image=copy.deepcopy(preprocessed_image), bboxes=copy.deepcopy(bboxes))
+        self.publish_debug_image(debug_image=copy.deepcopy(preprocessed_image), bboxes=copy.deepcopy(bboxes), debug_depth=preprocessed_image_depth.copy())
         if len(bboxes) == 0:#No detections
             return None
         #Else, for now take the highest confidence#Todo maybe decide based on combination confidence/highest in the crate
         #Convert bbox back to match original image size/shape
-        bbox = bboxes[0]
+        highest_bbox = None
+        smallest_depth = np.inf
+        for i,bbox in enumerate(copy.deepcopy(bboxes)):
+            bbox[:8] *= image_scale#Dont scale the condifence/class
+            bbox[1:8:2] -= pad_size#Move the y coordinates to account for padding
+            mid_point = (int((bbox[0]+bbox[4])/2), int((bbox[1]+bbox[5])/2))
+            depth_image_filter = DepthImageFilter(depth_image, self.rs_intrinsics, patch_size=30)
+            depth = depth_image_filter.get_depth(mid_point[1], mid_point[0])#Assume same depth for the corners
+            if depth < smallest_depth:
+                smallest_depth = depth
+                highest_bbox = i
+            
+        bbox = bboxes[highest_bbox]
         bbox[:8] *= image_scale#Dont scale the condifence/class
         bbox[1:8:2] -= pad_size#Move the y coordinates to account for padding
         truss_data = self.generate_truss_data(image=image, depth_image=depth_image, bbox=bbox)
@@ -136,8 +154,9 @@ class DetectTrussOBB():
         print("Truss found at :", truss_data.poses[0].position)
         return truss_data
     
-    def publish_debug_image(self, debug_image, bboxes):
+    def publish_debug_image(self, debug_image, bboxes, debug_depth=None):
         self.truss_detection_raw_pub.publish(self.bridge.cv2_to_imgmsg(debug_image, encoding="rgb8"))
+        debug_image_raw = debug_image.copy()
         for i in range(bboxes.shape[0]):
             bbox = bboxes[i]
             edge_coordinates = list()
@@ -149,6 +168,26 @@ class DetectTrussOBB():
             debug_image = cv2.line(debug_image, edge_coordinates[3], edge_coordinates[0], (255,255,0), 2)
             debug_image = cv2.putText(debug_image, str(np.around(bbox[8],2)), edge_coordinates[0], cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,0), 1, cv2.LINE_AA)
 
+        rospack = rospkg.RosPack()
+        grasp_pckg_dir = rospack.get_path('grasp')
+        catkin_ws_dir = os.path.dirname(os.path.dirname(os.path.dirname(grasp_pckg_dir)))
+        exp_dir = os.path.join(catkin_ws_dir, "experiments")
+        saved_exp_dir = os.path.join(catkin_ws_dir, "saved_experiments")
+        obb_dir = os.path.join(exp_dir, "obb")
+        
+        #If experiments folder already exist, save it with a new name
+        if not os.path.exists(saved_exp_dir):
+            os.makedirs(saved_exp_dir)
+        if os.path.exists(exp_dir) and len(os.listdir(exp_dir)) > 2:
+            current_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            shutil.move(exp_dir, os.path.join(saved_exp_dir, f"{current_time}"))
+        
+        if not os.path.exists(obb_dir):
+            os.makedirs(obb_dir)
+        cv2.imwrite(os.path.join(obb_dir, "rgb.jpg"), debug_image_raw[:,:,::-1])
+        cv2.imwrite(os.path.join(obb_dir, "rgb_debug.jpg"), debug_image[:,:,::-1])
+        np.save(os.path.join(obb_dir, "bboxes.npy"),np.array(bboxes))
+        np.save(os.path.join(obb_dir, "depth.npy"),debug_depth)    
 
         ros_image_msg = self.bridge.cv2_to_imgmsg(debug_image, encoding="rgb8")
         self.truss_detection_pub.publish(ros_image_msg)

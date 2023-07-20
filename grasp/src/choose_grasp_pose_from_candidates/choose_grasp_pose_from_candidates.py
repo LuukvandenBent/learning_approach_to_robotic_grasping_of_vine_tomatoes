@@ -41,7 +41,7 @@ class ChooseGraspPoseFromCandidates():
         rospack = rospkg.RosPack()#Data dirs for saving pc data
         grasp_pckg_dir = rospack.get_path('grasp')
         catkin_ws_dir = os.path.dirname(os.path.dirname(os.path.dirname(grasp_pckg_dir)))
-        self.pointcloud_save_dir = os.path.join(catkin_ws_dir, "data_pointnet/pointcloud/")
+        self.pointcloud_save_dir = os.path.join(catkin_ws_dir, "experiments/pointcloud/")
         
         model = importlib.import_module("pointnet2_cls_ssg")
         checkpoint = torch.load(os.path.join(BASE_DIR, 'weights/pointcloud.pth'), map_location='cpu')
@@ -98,6 +98,16 @@ class ChooseGraspPoseFromCandidates():
             pointclouds.append(pc_points)
             depth_images.append(depth_image/255)
 
+        #for saving distance to center
+        truss_pos_array = np.array([truss_center.pose.position.x, truss_center.pose.position.y, truss_center.pose.position.z])
+        grasp_pos_array = np.zeros((len(stamped_poses),3))
+        for i,pose in enumerate(stamped_poses):
+            grasp_pos_array[i,:] = [pose.pose.position.x, pose.pose.position.y, pose.pose.position.z]
+        distances = np.sqrt(np.sum((grasp_pos_array - truss_pos_array)**2, axis=1))
+        if not os.path.exists(self.pointcloud_save_dir):
+            os.makedirs(self.pointcloud_save_dir)
+        np.save(os.path.join(self.pointcloud_save_dir, "distances.npy"), distances)
+        #
         pred = None
         if self.classifier == "random":
             print("Chosing a random one !!")

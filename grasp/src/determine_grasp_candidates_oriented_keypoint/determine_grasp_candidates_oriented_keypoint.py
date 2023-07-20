@@ -7,6 +7,7 @@ import copy
 from cv_bridge import CvBridge
 import pyrealsense2 as rs
 import pcl_ros
+import rospkg
 
 import tf2_ros
 import tf2_geometry_msgs
@@ -64,6 +65,7 @@ class DetermineGraspCandidatesOrientedKeypoint():
         preprocessed_image = cv2.copyMakeBorder(rgb_image, pad_size, pad_size, 0, 0, cv2.BORDER_CONSTANT, None, 0)
         image_scale = rgb_image.shape[1]/image_size
         preprocessed_image = cv2.resize(preprocessed_image, (image_size,image_size), interpolation = cv2.INTER_AREA)
+        
         #Run model
         results = self.model(preprocessed_image)#Model runs at resolution of 640
         bboxes = results.pred[0].cpu().numpy()
@@ -98,6 +100,7 @@ class DetermineGraspCandidatesOrientedKeypoint():
     def publish_debug_image(self, debug_image, bboxes):
         self.grasp_candidates_raw_debug_pub.publish(self.bridge.cv2_to_imgmsg(debug_image, encoding="rgb8"))
         decoded_debug_image = copy.deepcopy(debug_image)
+        debug_image_raw = debug_image.copy()
         color_blue = (0,0,255)
         for i in range(bboxes.shape[0]):
             bbox = bboxes[i]
@@ -113,6 +116,16 @@ class DetermineGraspCandidatesOrientedKeypoint():
             decoded_debug_image = cv2.line(decoded_debug_image, p1, p2, color_blue, 2)
             decoded_debug_image = cv2.circle(decoded_debug_image, (x_c,y_c), 5, color_blue, -1)
 
+        rospack = rospkg.RosPack()
+        grasp_pckg_dir = rospack.get_path('grasp')
+        catkin_ws_dir = os.path.dirname(os.path.dirname(os.path.dirname(grasp_pckg_dir)))
+        pose_dir = os.path.join(catkin_ws_dir, "experiments/pose")
+        if not os.path.exists(pose_dir):
+            os.makedirs(pose_dir)
+        cv2.imwrite(os.path.join(pose_dir, "rgb.jpg"), debug_image_raw[:,:,::-1])
+        cv2.imwrite(os.path.join(pose_dir, "rgb_debug.jpg"), debug_image[:,:,::-1])
+        np.save(os.path.join(pose_dir, "bboxes.npy"),np.array(bboxes)) 
+        
         ros_image_msg = self.bridge.cv2_to_imgmsg(debug_image, encoding="rgb8")
         ros_decoded_image_msg = self.bridge.cv2_to_imgmsg(decoded_debug_image, encoding="rgb8")
         self.grasp_candidates_debug_pub.publish(ros_image_msg)
