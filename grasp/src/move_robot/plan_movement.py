@@ -265,6 +265,7 @@ class Planner(object):
             move_group.go(self.saved_joints_ee, wait=True)
             move_group.stop()
             move_group.clear_pose_targets()
+            rospy.sleep(2)#sleep for camera to refocus etc
         
         #Test if plan succeeded
         current_pose = move_group.get_current_pose().pose
