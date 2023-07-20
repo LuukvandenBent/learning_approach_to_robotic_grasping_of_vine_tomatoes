@@ -80,11 +80,13 @@ class Planner(object):
         self.gripper_move_action = actionlib.SimpleActionClient('franka_gripper/move', franka_gripper.msg.MoveAction)
     
         rospy.sleep(2)#Needed
-        table = create_collision_object(robot=self.robot, id='table', dimensions=[1.5, 1.5, 0.02], pose=[0.85, 0, -0.05])#Add limits for table and wall
-        wall = create_collision_object(robot=self.robot, id='wall', dimensions=[0.02, 1, 1], pose=[-0.4, 0, 0.5])#Add limits for table and wall
+        ceiling = create_collision_object(robot=self.robot, id='ceiling', dimensions=[2, 2, 0.02], pose=[0, 0, 1])#Add limits for table and wall
+        wall1 = create_collision_object(robot=self.robot, id='wall1', dimensions=[0.02, 1, 1], pose=[-0.5, 0, 0.5], orientation=[0,0,0])#Add limits for table and wall
+        wall2 = create_collision_object(robot=self.robot, id='wall2', dimensions=[0.02, 1, 1], pose=[0, -0.2, 0.5], orientation=[0,0,np.pi/2])#Add limits for table and wall
 
-        #self.scene.add_object(table)
-        self.scene.add_object(wall)
+        self.scene.add_object(ceiling)
+        self.scene.add_object(wall1)
+        self.scene.add_object(wall2)
         
         for move_group in [self.move_group, self.move_group_ee, self.move_group_camera]:
             move_group.get_current_pose()#Call get_current_pose once to fix a bug: https://github.com/ros-planning/moveit/issues/2715
