@@ -234,9 +234,13 @@ class Planner(object):
                 else:
                     return 'failure'
             elif success:
-                move_group.execute(plan, wait=True)
+                plan_executed = move_group.execute(plan, wait=True)
                 move_group.stop()
                 move_group.clear_pose_targets()
+                if not plan_executed: #This happens for some reason and is maybe a bug in the controller manager
+                    self.switch_controller("impedance")
+                    self.switch_controller(controller)#Switch back and back to reset
+                    return self.go_to_pose(goal_pose=goal_pose, move_group=move_group)
         
         elif controller == "impedance":
             if move_group != self.move_group_ee:
