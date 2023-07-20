@@ -173,7 +173,8 @@ class Planner(object):
         
         elif movement == 'go_to_center':
             goal_pose = copy.deepcopy(self.saved_pose_ee)
-            goal_pose.pose.position.z = 0.1
+            goal_pose.pose.position.z = self.grasp_pose.pose.position.z + 0.05
+            allow_flip = True
         
         elif movement == 'go_to_place_above':
             goal_pose = copy.deepcopy(self.saved_pose_ee_place)
