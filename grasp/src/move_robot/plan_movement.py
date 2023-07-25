@@ -38,8 +38,7 @@ class Planner(object):
         self.vine_radius = 0.0025
         self.succesfull_grasp_force_difference = 0.3#0.15 for fake
         self.force_limit = 6#Newton
-        
-        self.crate_width, self.crate_length, self.crate_height = 0.36, 0.56, 0.23
+
         
         self.grasp_pose = None
         self.truss_pose = None
@@ -53,9 +52,6 @@ class Planner(object):
         self.planning_frame = rospy.get_param('/planning_frame')
         self.camera_frame = rospy.get_param('/camera_frame')
         self.robot_name = rospy.get_param('/robot_name')
-
-        self.aruco1_pose_sub = rospy.Subscriber("aruco_tracker/pose", Pose, self.aruco1_pose_callback)
-        self.aruco2_pose_sub = rospy.Subscriber("aruco_tracker/pose2", Pose, self.aruco2_pose_callback)
         
         self.cartesian_pose_pub = rospy.Publisher("/equilibrium_pose", PoseStamped, queue_size=0)
         self.force_ext_sub = rospy.Subscriber("franka_state_controller/F_ext", WrenchStamped, self.force_ext_callback, queue_size=1)
@@ -69,7 +65,6 @@ class Planner(object):
         moveit_commander.roscpp_initialize(sys.argv)
         self.robot = moveit_commander.RobotCommander()
         self.scene = moveit_commander.PlanningSceneInterface()
-        self.display_trajectory_publisher = rospy.Publisher("/move_group/display_planned_path", moveit_msgs.msg.DisplayTrajectory, queue_size=20)
 
         self.move_group = moveit_commander.MoveGroupCommander(self.robot_name+"_arm")
         self.move_group_ee = moveit_commander.MoveGroupCommander(self.robot_name+"_manipulator")
@@ -94,20 +89,6 @@ class Planner(object):
         command = pipeline_command()
         command.command = "save_pose"
         self.plan_movement(command)#Save pose at start
-
-    def aruco1_pose_callback(self, data):
-        if self.aruco1_pose is None:
-            data_stamped = PoseStamped()
-            data_stamped.header.frame_id = self.camera_frame 
-            data_stamped.pose = data
-            self.aruco1_pose = transform_pose(data_stamped, self.planning_frame, self.tfBuffer)
-
-    def aruco2_pose_callback(self, data):
-        if self.aruco2_pose is None:
-            data_stamped = PoseStamped()
-            data_stamped.header.frame_id = self.camera_frame
-            data_stamped.pose = data
-            self.aruco2_pose = transform_pose(data_stamped, self.planning_frame, self.tfBuffer)
     
     def force_ext_callback(self, data):
         self.force_z = data.wrench.force.z
@@ -276,12 +257,6 @@ class Planner(object):
         else:
             return 'failure'
 
-    def display_trajectory(self, plan):
-        display_trajectory = moveit_msgs.msg.DisplayTrajectory()
-        display_trajectory.trajectory_start = self.robot.get_current_state()
-        display_trajectory.trajectory.append(plan)
-        self.display_trajectory_publisher.publish(display_trajectory) 
-
     def grasp(self):
         supplied_grasp_pose = self.grasp_pose
         if self.pre_grasp_gripper() == "success":#Open the gripper
@@ -371,29 +346,6 @@ class Planner(object):
                 dest_dir = pointcloud_failure_dir 
             shutil.move(file_path, os.path.join(dest_dir, file_list[0]))     
         return "success"# if result else "failure" #Just return success
-
-    def create_crate_collision_object(self):
-        self.aruco1_pose, self.aruco2_pose = None, None
-        counter = 0
-        while self.aruco1_pose is None or self.aruco2_pose is None:
-            rospy.sleep(0.2) 
-            counter += 1
-            if counter > 10:
-                print("COULD NOT GET ARUCO POSES IN TIME")
-                return "failure"
-        z_min = (self.aruco1_pose.pose.position.z + self.aruco2_pose.pose.position.z)/2
-        center = [(self.aruco1_pose.pose.position.x+self.aruco2_pose.pose.position.x)/2, (self.aruco1_pose.pose.position.y+self.aruco2_pose.pose.position.y)/2]
-        poses = [[center[0]+self.crate_width/2, center[1], z_min+self.crate_height/2], [center[0]-self.crate_width/2, center[1], z_min+self.crate_height/2], [center[0], center[1]+self.crate_length/2, z_min+self.crate_height/2], [center[0], center[1]-self.crate_length/2, z_min+self.crate_height/2]]
-        crate_1 = create_collision_object(robot=self.robot, id='crate_1', dimensions=[0.01, self.crate_length, self.crate_height], pose=poses[0])
-        crate_2 = create_collision_object(robot=self.robot, id='crate_2', dimensions=[0.01, self.crate_length, self.crate_height], pose=poses[1])
-        crate_3 = create_collision_object(robot=self.robot, id='crate_3', dimensions=[self.crate_width,0.01, self.crate_height], pose=poses[2])
-        crate_4 = create_collision_object(robot=self.robot, id='crate_4', dimensions=[self.crate_width, 0.01, self.crate_height], pose=poses[3])
-
-        self.scene.add_object(crate_1)
-        self.scene.add_object(crate_2)
-        self.scene.add_object(crate_3)
-        self.scene.add_object(crate_4)
-        return "success"
     
     def switch_controller(self, new_controller):
         #For the cartesian impedance controller, first set the current atractor at the current position so no sudden movements happen

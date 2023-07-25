@@ -25,7 +25,7 @@ NODE_NAME = 'pipeline'
 
 class Idle(smach.State):
     def __init__(self):
-        smach.State.__init__(self, outcomes=['failure', 'move', 'detect', 'detect_obb', 'detect_manual', 'map', 'grasp_candidates_manual', 'grasp_candidates_keypoints', 'grasp_candidates_oriented_keypoint', 'grasp_pose_from_candidates'],
+        smach.State.__init__(self, outcomes=['failure', 'move', 'detect_obb', 'detect_manual', 'map', 'grasp_candidates_manual', 'grasp_candidates_oriented_keypoint', 'grasp_pose_from_candidates'],
                              input_keys=['success', 'prev_command', 'truss_data', 'map', 'grasp_candidates', 'grasp_pose'],
                              output_keys=['command', 'prev_command', 'truss_data', 'map', 'grasp_candidates', 'grasp_pose'])
 
@@ -114,8 +114,6 @@ class Idle(smach.State):
             or next_state == "go_to_place_above" or next_state == "go_to_place" or next_state == "go_to_place_retreat" or next_state == "go_to_truss"
             or next_state == "grasp" or next_state == "check_grasp_success" or next_state == "open_gripper" or next_state == "pre_grasp_gripper" or next_state == "close_gripper"):
             return 'move'
-        elif next_state == "detect_truss":
-            return 'detect'
         elif next_state == "detect_truss_obb":
             return 'detect_obb'
         elif next_state == "detect_truss_manual":
@@ -124,44 +122,13 @@ class Idle(smach.State):
             return 'map'
         elif next_state == "determine_grasp_candidates_manual":
             return 'grasp_candidates_manual'
-        elif next_state == "determine_grasp_candidates_keypoints":
-            return 'grasp_candidates_keypoints'
         elif next_state == "determine_grasp_candidates_oriented_keypoint":
             return 'grasp_candidates_oriented_keypoint'
         elif (next_state == 'choose_grasp_pose_from_candidates_random' or next_state == 'choose_grasp_pose_from_candidates_center'
-              or next_state == 'choose_grasp_pose_from_candidates_pointcloud' or next_state == 'choose_grasp_pose_from_candidates_depth_image'):
+              or next_state == 'choose_grasp_pose_from_candidates_depth_image'):
             return 'grasp_pose_from_candidates'
         else:
             return 'failure'
-
-class DetectObject(smach.State):
-    def __init__(self):
-        smach.State.__init__(self, outcomes=['success', 'failure'], 
-                             input_keys=['command'], 
-                             output_keys=['command', 'prev_command', 'truss_data'])
-        try:
-            rospy.wait_for_service('detect_truss', timeout=60)
-            self.detect_truss_service = rospy.ServiceProxy('detect_truss', detect_truss_command)
-        except:
-            print("detect_truss FAILED")
-
-    def execute(self, userdata):
-        rospy.logdebug('Executing state Detect')
-        
-        # command node
-        if userdata.command == 'detect_truss':
-            try:
-                truss_data = self.detect_truss_service('detect_truss').poses
-            except:
-                print("PIPELINE FAILED TO RETREIVE TRUSS DATA")
-                userdata.success = False
-                return 'failure'
-            userdata.truss_data = truss_data
-            userdata.prev_command = userdata.command
-            userdata.success = True
-            return 'success'
-        userdata.success = False
-        return 'failure'
 class DetectObjectOBB(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=['success', 'failure'], 
@@ -262,31 +229,6 @@ class DetermineGraspCandidatesManual(smach.State):
 
     def execute(self, userdata):
         if userdata.command == 'determine_grasp_candidates_manual':
-            try:
-                grasp_candidates = self.find_grasp_candidates_keypoints_service(userdata.map)
-            except:
-                print("PIPELINE FAILED TO FIND GRASP CANDIDATES")
-                userdata.success = False
-                return 'failure'
-            userdata.grasp_candidates = grasp_candidates.grasp_candidates
-            userdata.prev_command = userdata.command
-            userdata.success = True
-            return 'success'
-        userdata.success = False
-        return 'failure'
-class DetermineGraspCandidatesKeypoints(smach.State):
-    def __init__(self):
-        smach.State.__init__(self, outcomes=['success', 'failure'], 
-                             input_keys=['command', 'map'], 
-                             output_keys=['success', 'prev_command', 'grasp_candidates'])
-        try:
-            rospy.wait_for_service('find_grasp_candidates_keypoints', timeout=30)
-            self.find_grasp_candidates_keypoints_service = rospy.ServiceProxy('find_grasp_candidates_keypoints', find_grasp_candidates_command)
-        except:
-            print("find_grasp_candidates_keypoints_services FAILED")
-    
-    def execute(self, userdata):
-        if userdata.command == 'determine_grasp_candidates_keypoints':
             try:
                 grasp_candidates = self.find_grasp_candidates_keypoints_service(userdata.map)
             except:
@@ -430,19 +372,14 @@ def main():
     with sm:
         # Add states to the container
         smach.StateMachine.add('Idle', Idle(),
-                               transitions={'detect':'DetectObject',
-                                            'detect_obb':'DetectObjectOBB',
+                               transitions={'detect_obb':'DetectObjectOBB',
                                             'detect_manual':'DetectObjectManual',
                                             'move': 'MoveRobot',
                                             'map':'GenerateMap',
                                             'grasp_candidates_manual':'DetermineGraspCandidatesManual',
-                                            'grasp_candidates_keypoints':'DetermineGraspCandidatesKeypoints',
                                             'grasp_candidates_oriented_keypoint':'DetermineGraspCandidatesOrientedKeypoint',
                                             'grasp_pose_from_candidates':'ChooseGraspPoseFromCandidates',
                                             'failure': 'Idle'})
-        smach.StateMachine.add('DetectObject', DetectObject(),
-                               transitions={'success': 'Idle',
-                                            'failure': 'Idle',})
         smach.StateMachine.add('DetectObjectOBB', DetectObjectOBB(),
                                transitions={'success': 'Idle',
                                             'failure': 'Idle',})
@@ -453,9 +390,6 @@ def main():
                                transitions={'success': 'Idle',
                                             'failure': 'Idle',})
         smach.StateMachine.add('DetermineGraspCandidatesManual', DetermineGraspCandidatesManual(),
-                               transitions={'success': 'Idle',
-                                            'failure': 'Idle',})
-        smach.StateMachine.add('DetermineGraspCandidatesKeypoints', DetermineGraspCandidatesKeypoints(),
                                transitions={'success': 'Idle',
                                             'failure': 'Idle',})
         smach.StateMachine.add('DetermineGraspCandidatesOrientedKeypoint', DetermineGraspCandidatesOrientedKeypoint(),

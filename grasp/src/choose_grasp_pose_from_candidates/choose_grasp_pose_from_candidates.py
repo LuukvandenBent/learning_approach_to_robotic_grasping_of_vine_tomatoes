@@ -44,13 +44,6 @@ class ChooseGraspPoseFromCandidates():
         catkin_ws_dir = os.path.dirname(os.path.dirname(os.path.dirname(grasp_pckg_dir)))
         self.pointcloud_save_dir = os.path.join(catkin_ws_dir, "experiments/pointcloud/")
         
-        model = importlib.import_module("pointnet2_cls_ssg")
-        checkpoint = torch.load(os.path.join(BASE_DIR, 'weights/pointcloud.pth'), map_location='cpu')
-        self.pointcloud_classifier = model.get_model(num_class=2, normal_channel=False)
-        self.pointcloud_classifier = self.pointcloud_classifier#.cuda()
-        self.pointcloud_classifier.load_state_dict(checkpoint['model_state_dict'])
-        self.pointcloud_classifier.eval()
-        
         file_id = "1QSNF9zeecNudcsDd9i5JPskQDEeWv9TY"  # Replace this with the Google Drive file ID
         download_from_google_drive(file_id, os.path.join(BASE_DIR, 'weights/depth_image_encoder.pth'))
         model = importlib.import_module("encoder")
@@ -69,7 +62,7 @@ class ChooseGraspPoseFromCandidates():
         
     def execute_command(self, data):
         print("CHOOSING GRASP POSE FROM CANDIDATES")
-        if data.command == "random" or data.command == "center" or data.command == "pointcloud" or data.command == "depth_image":
+        if data.command == "random" or data.command == "center" or data.command == "depth_image":
             self.classifier = data.command
         else:
             return None
@@ -123,18 +116,6 @@ class ChooseGraspPoseFromCandidates():
                 grasp_pos_array[i,:] = [pose.pose.position.x, pose.pose.position.y, pose.pose.position.z]
             distances = np.sqrt(np.sum((grasp_pos_array - truss_pos_array)**2, axis=1))
             grasp_index = np.argmin(distances)                
-        elif self.classifier == "pointcloud":
-            pointclouds_downsampled = list()
-            print("Classifying the pointclouds")
-            for pc in pointclouds:
-                #pointclouds_downsampled.append(self.farthest_point_sample(pc, 2048))
-                pointclouds_downsampled.append(self.uniform_point_sample(pc, 2048))
-            with torch.no_grad():
-                points = torch.Tensor(np.array(pointclouds_downsampled).astype(np.float32))#.cuda()
-                points = points.transpose(2, 1)
-                pred, _ = self.pointcloud_classifier(points)#(log?) probabilities
-                pred = pred.cpu()
-                grasp_index = pred[:, 0].argmax().item()#class: success, failure
         elif self.classifier == "depth_image":
             print("Classifying the depth images")
             with torch.no_grad():
@@ -175,7 +156,6 @@ class ChooseGraspPoseFromCandidates():
             numpy_xyz, numpy_rgb = numpy_xyz[indexes], numpy_rgb[indexes]
         #numpy_xyz -= np.mean(numpy_xyz, axis=0)#Center around 0#todo not needed!
         numpy_xyz /= max_distance#Normalize
-
         depth_image = pointcloud2depthimage(copy.deepcopy(numpy_xyz))
         
         if save:
@@ -184,26 +164,6 @@ class ChooseGraspPoseFromCandidates():
             xyzrgb = np.hstack((numpy_xyz, numpy_rgb))
             np.savetxt(os.path.join(self.pointcloud_save_dir, f"{file_name}.txt"), xyzrgb, delimiter=',')
         return numpy_xyz, numpy_rgb, depth_image
-    
-    def farthest_point_sample(self, point, npoint):
-        N, D = point.shape
-        xyz = point[:,:3]
-        centroids = np.zeros((npoint,))
-        distance = np.ones((N,)) * 1e10
-        farthest = np.random.randint(0, N)
-        for i in range(npoint):
-            centroids[i] = farthest
-            centroid = xyz[farthest, :]
-            dist = np.sum((xyz - centroid) ** 2, -1)
-            mask = dist < distance
-            distance[mask] = dist[mask]
-            farthest = np.argmax(distance, -1)
-        point = point[centroids.astype(np.int32)]
-        return point
-    
-    def uniform_point_sample(self, point, npoint):#Only works when the points are 'ordered'
-        indices = np.linspace(0, point.shape[0]-1, npoint, dtype=int)
-        return point[indices]
     
     def visualize_grasp_candidates(self, pointcloud, grasp_candidates, confidence, grasp_index):
         transform = find_transform(pointcloud.header.frame_id, self.camera_frame, self.tfBuffer)
