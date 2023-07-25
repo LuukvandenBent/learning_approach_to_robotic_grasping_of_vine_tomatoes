@@ -20,6 +20,7 @@ from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from grasp.srv import find_grasp_candidates_command
 from common.transforms import find_transform, transform_pose, transform_pose_array
 from common.util import camera_info2rs_intrinsics, pointcloud2numpy, pointcloud2image
+from common.download_model import download_from_google_drive
 
 class DetermineGraspCandidatesOrientedKeypoint():
     def __init__(self, NODE_NAME):
@@ -37,6 +38,8 @@ class DetermineGraspCandidatesOrientedKeypoint():
         self.grasp_candidates_decoded_debug_pub = rospy.Publisher('grasp_candidates_decoded_debug', Image, queue_size=1, latch=True)
         self.find_grasp_candidates_oriented_keypoint_services = rospy.Service('find_grasp_candidates_oriented_keypoint', find_grasp_candidates_command, self.execute_command)
         
+        file_id = "1Ij7mPwlxIfgRzM7F86U3xLeSjzJSqTPP"  # Replace this with the Google Drive file ID
+        download_from_google_drive(file_id, self.detection_model_path)
         self.model = torch.hub.load(os.path.dirname(os.path.realpath(__file__)), 'custom', path_or_model=self.detection_model_path, source='local', force_reload=True)
         #todo set good thresholds
         self.model.conf = 0.25  # NMS confidence threshold

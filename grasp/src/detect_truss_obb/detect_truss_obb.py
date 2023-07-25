@@ -17,6 +17,7 @@ from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from grasp.srv import detect_truss_command, detect_truss_commandResponse
 from common.transforms import transform_pose_array
 from common.util import camera_info2rs_intrinsics, DepthImageFilter
+from common.download_model import download_from_google_drive
 
 class DetectTrussOBB():
     def __init__(self, NODE_NAME):
@@ -43,6 +44,8 @@ class DetectTrussOBB():
         self.collect_depth_image = False
         
         #todo set good thresholds
+        file_id = "1tQcs9CIyE0b7YNtx86-iPnVuTkjOvFuh"  # Replace this with the Google Drive file ID
+        download_from_google_drive(file_id, self.detection_model_path)
         self.model = torch.hub.load(os.path.dirname(os.path.realpath(__file__)), 'custom', path=self.detection_model_path, source='local', force_reload=True) 
         self.model.conf = 0.25  # NMS confidence threshold
         self.model.iou = 0.45  # NMS IoU threshold

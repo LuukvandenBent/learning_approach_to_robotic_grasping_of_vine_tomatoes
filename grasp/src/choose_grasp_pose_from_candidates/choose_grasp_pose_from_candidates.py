@@ -21,6 +21,7 @@ from grasp.srv import choose_grasp_pose_from_candidates_command
 
 from common.util import camera_info2rs_intrinsics, pointcloud2numpy, pointcloud2image, pointcloud2depthimage, reproject_point
 from common.transforms import find_transform, transform_pose, transform_pose_array
+from common.download_model import download_from_google_drive
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, 'models'))#Needed for import lib
@@ -50,6 +51,8 @@ class ChooseGraspPoseFromCandidates():
         self.pointcloud_classifier.load_state_dict(checkpoint['model_state_dict'])
         self.pointcloud_classifier.eval()
         
+        file_id = "1QSNF9zeecNudcsDd9i5JPskQDEeWv9TY"  # Replace this with the Google Drive file ID
+        download_from_google_drive(file_id, os.path.join(BASE_DIR, 'weights/depth_image_encoder.pth'))
         model = importlib.import_module("encoder")
         checkpoint = torch.load(os.path.join(BASE_DIR, 'weights/depth_image_encoder.pth'), map_location='cpu')
         self.depth_image_encoder = model.Encoder(in_channels=1, encoded_space_dim=30, input_size=128)
