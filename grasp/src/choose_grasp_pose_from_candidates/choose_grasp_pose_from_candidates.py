@@ -16,6 +16,7 @@ from sensor_msgs.msg import Image, CameraInfo
 import copy
 import shutil
 import pickle
+import threading
 
 from grasp.srv import choose_grasp_pose_from_candidates_command
 
@@ -134,7 +135,9 @@ class ChooseGraspPoseFromCandidates():
         
         self.visualize_grasp_candidates(pointcloud=pointcloud, grasp_candidates=stamped_poses, confidence=pred, grasp_index=grasp_index)
         
-        self.move_unlabeled_pointclouds(skip=grasp_index)#Move all pointclouds that are not tried to the unlabeled folder
+        thread = threading.Thread(target=self.move_unlabeled_pointclouds(skip=grasp_index))#Move all pointclouds that are not tried to the unlabeled folder
+        thread.start()
+        
         grasp_pose = stamped_poses[grasp_index]
         return grasp_pose
     
@@ -159,10 +162,9 @@ class ChooseGraspPoseFromCandidates():
         depth_image = pointcloud2depthimage(copy.deepcopy(numpy_xyz))
         
         if save:
-            if not os.path.exists(self.pointcloud_save_dir):
-                os.makedirs(self.pointcloud_save_dir)
-            xyzrgb = np.hstack((numpy_xyz, numpy_rgb))
-            np.savetxt(os.path.join(self.pointcloud_save_dir, f"{file_name}.txt"), xyzrgb, delimiter=',')
+            thread = threading.Thread(target=self.save_pointcloud(numpy_xyz, numpy_rgb, file_name))
+            thread.start()
+            
         return numpy_xyz, numpy_rgb, depth_image
     
     def visualize_grasp_candidates(self, pointcloud, grasp_candidates, confidence, grasp_index):
@@ -189,3 +191,9 @@ class ChooseGraspPoseFromCandidates():
         for file in os.listdir(self.pointcloud_save_dir):
             if file.endswith(".txt") and not file.endswith(f"{skip}.txt"):
                 shutil.move(os.path.join(self.pointcloud_save_dir, file), os.path.join(pointcloud_unlabeled_dir, file))
+    
+    def save_pointcloud(self, numpy_xyz, numpy_rgb, file_name):
+        if not os.path.exists(self.pointcloud_save_dir):
+                os.makedirs(self.pointcloud_save_dir)
+        xyzrgb = np.hstack((numpy_xyz, numpy_rgb))
+        np.savetxt(os.path.join(self.pointcloud_save_dir, f"{file_name}.txt"), xyzrgb, delimiter=',')
