@@ -32,22 +32,33 @@ class Idle(smach.State):
         self.node_name = NODE_NAME
         self.rqt_service = rospy.Service('rqt_service', pipeline_command, self.set_next_state)
         self.next_state = None
-        self.full_pipeline = ["detect_truss_obb", "go_to_truss", "create_map", "determine_grasp_candidates_oriented_keypoint", "choose_grasp_pose_from_candidates_center", "grasp", "go_to_center", "open_gripper", "check_grasp_success", "go_to_saved_pose"]
-        self.full_pipeline_crate = ["detect_truss_obb", "go_to_truss", "create_map", "determine_grasp_candidates_oriented_keypoint", "choose_grasp_pose_from_candidates_center", "grasp", "go_to_place_above", "go_to_place", "open_gripper", "check_grasp_success", "go_to_place_retreat", "go_to_saved_pose"]
+        self.full_pipeline_COM = ["detect_truss_obb", "go_to_truss", "create_map", "determine_grasp_candidates_oriented_keypoint", "choose_grasp_pose_from_candidates_center", "grasp", "go_to_center", "open_gripper", "check_grasp_success", "go_to_saved_pose"]
+        self.full_pipeline = ["detect_truss_obb", "go_to_truss", "create_map", "determine_grasp_candidates_oriented_keypoint", "choose_grasp_pose_from_candidates_depth_image", "grasp", "go_to_center", "open_gripper", "check_grasp_success", "go_to_saved_pose"]
+        self.full_pipeline_crate_COM = ["detect_truss_obb", "go_to_truss", "create_map", "determine_grasp_candidates_oriented_keypoint", "choose_grasp_pose_from_candidates_center", "grasp", "go_to_place_above", "go_to_place", "open_gripper", "check_grasp_success", "go_to_place_retreat", "go_to_saved_pose"]
+        self.full_pipeline_crate = ["detect_truss_obb", "go_to_truss", "create_map", "determine_grasp_candidates_oriented_keypoint", "choose_grasp_pose_from_candidates_depth_image", "grasp", "go_to_place_above", "go_to_place", "open_gripper", "check_grasp_success", "go_to_place_retreat", "go_to_saved_pose"]
+        self.pipeline_dict = {"full_pipeline_COM" : self.full_pipeline_COM, "full_pipeline_crate_COM" : self.full_pipeline_crate_COM, "full_pipeline_crate" : self.full_pipeline_crate, "full_pipeline" : self.full_pipeline}
         self.execute_full_pipeline = False
-        self.execute_full_pipeline_from_start = False
-        self.execute_full_pipeline_crate = False
-        self.execute_full_pipeline_crate_from_start = False   
+        self.execute_full_pipeline_from_start = False 
         self.execute_full_pipeline_repeat = False                 
     
     def set_next_state(self, command):
         print("NEXT STATE :", command)
-        if command.command == "execute_full_pipeline":
+        if command.command == "execute_full_pipeline_COM":
             self.execute_full_pipeline = True
             self.execute_full_pipeline_from_start = True
+            self.pipeline = "full_pipeline_COM"
+        elif command.command == "execute_full_pipeline_crate_COM":
+            self.execute_full_pipeline = True
+            self.execute_full_pipeline_from_start = True
+            self.pipeline = "full_pipeline_crate_COM"
+        elif command.command == "execute_full_pipeline":
+            self.execute_full_pipeline = True
+            self.execute_full_pipeline_from_start = True
+            self.pipeline = "full_pipeline"
         elif command.command == "execute_full_pipeline_crate":
-            self.execute_full_pipeline_crate = True
-            self.execute_full_pipeline_crate_from_start = True
+            self.execute_full_pipeline = True
+            self.execute_full_pipeline_from_start = True
+            self.pipeline = "full_pipeline_crate"
         elif command.command == "toggle_execute_full_pipeline_repeat":
             self.execute_full_pipeline_repeat = not self.execute_full_pipeline_repeat
         else:
@@ -57,8 +68,9 @@ class Idle(smach.State):
     def execute(self, userdata):
         while self.next_state is None:#Wait untill a new state is set
             if self.execute_full_pipeline:#Logic for automatically doing the pipeline
+                pipeline = self.pipeline_dict[self.pipeline]
                 if not userdata.success:
-                    self.next_state = self.full_pipeline[-1]#if something went wrong during the full pipeline, go back to saved pose
+                    self.next_state = pipeline[-1]#if something went wrong during the full pipeline, go back to saved pose
                     if self.execute_full_pipeline_repeat:
                         self.execute_full_pipeline_from_start = True
                     else:
@@ -67,9 +79,9 @@ class Idle(smach.State):
                     break
                 index = 0#Start at index 0
                 if not self.execute_full_pipeline_from_start:
-                    if userdata.prev_command in self.full_pipeline:#If a previous state was part of the pipeline, start there
-                        index = self.full_pipeline.index(userdata.prev_command)+1
-                    if index == len(self.full_pipeline):#if last action in pipeline
+                    if userdata.prev_command in pipeline:#If a previous state was part of the pipeline, start there
+                        index = pipeline.index(userdata.prev_command)+1
+                    if index == len(pipeline):#if last action in pipeline
                         if self.execute_full_pipeline_repeat:#If repeat start again
                             index = 0
                         else:#Else stop
@@ -78,33 +90,9 @@ class Idle(smach.State):
                             userdata.prev_command = None
                 self.execute_full_pipeline_from_start = False
                 if index is not None:
-                    self.next_state = self.full_pipeline[index]
+                    self.next_state = pipeline[index]
                     print("NEXT STATE :", self.next_state)
-            
-            elif self.execute_full_pipeline_crate:#Logic for automatically doing the pipeline
-                if not userdata.success:
-                    self.next_state = self.full_pipeline_crate[-1]#if something went wrong during the full pipeline, go back to saved pose
-                    if self.execute_full_pipeline_repeat:
-                        self.execute_full_pipeline_crate_from_start = True
-                    else:
-                        self.execute_full_pipeline_crate = False
-                        self.execute_full_pipeline_crate_from_start = False
-                    break
-                index = 0#Start at index 0
-                if not self.execute_full_pipeline_crate_from_start:
-                    if userdata.prev_command in self.full_pipeline_crate:#If a previous state was part of the pipeline, start there
-                        index = self.full_pipeline_crate.index(userdata.prev_command)+1
-                    if index == len(self.full_pipeline_crate):#if last action in pipeline
-                        if self.execute_full_pipeline_repeat:#If repeat start again
-                            index = 0
-                        else:#Else stop
-                            index = None
-                            self.execute_full_pipeline_crate = False
-                            userdata.prev_command = None
-                self.execute_full_pipeline_crate_from_start = False
-                if index is not None:
-                    self.next_state = self.full_pipeline_crate[index]
-                    print("NEXT STATE :", self.next_state)
+
             rospy.sleep(0.1)#Sleep to allow time for different things
         next_state = copy.deepcopy(self.next_state)
         self.next_state = None

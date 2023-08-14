@@ -65,6 +65,8 @@ class RqtPipeline(Plugin):
         self._widget.CloseGripper.clicked[bool].connect(lambda: self.send_command_to_pipeline("close_gripper"))
         self._widget.ExecuteFullPipeline.clicked[bool].connect(lambda: self.send_command_to_pipeline("execute_full_pipeline"))
         self._widget.ExecuteFullPipelineCrate.clicked[bool].connect(lambda: self.send_command_to_pipeline("execute_full_pipeline_crate"))
+        self._widget.ExecuteFullPipelineCOM.clicked[bool].connect(lambda: self.send_command_to_pipeline("execute_full_pipeline_COM"))
+        self._widget.ExecuteFullPipelineCrateCOM.clicked[bool].connect(lambda: self.send_command_to_pipeline("execute_full_pipeline_crate_COM"))
         self._widget.ToggleExecuteFullPipelineRepeat.clicked[bool].connect(lambda: self.send_command_to_pipeline("toggle_execute_full_pipeline_repeat"))
     
     def send_command_to_pipeline(self, command):
