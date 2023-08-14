@@ -3,6 +3,7 @@ import os
 import sys
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 import rospkg
 import tf2_ros
 import cv2
@@ -15,10 +16,12 @@ import tf2_sensor_msgs
 from sensor_msgs.msg import Image, CameraInfo
 import copy
 import shutil
-import pickle
 import threading
+from sklearn.neighbors import KNeighborsClassifier
 
 from grasp.srv import choose_grasp_pose_from_candidates_command
+
+from load_data import CustomDataset
 
 from common.util import camera_info2rs_intrinsics, pointcloud2numpy, pointcloud2image, pointcloud2depthimage, reproject_point
 from common.transforms import find_transform, transform_pose, transform_pose_array
@@ -49,13 +52,14 @@ class ChooseGraspPoseFromCandidates():
         download_from_google_drive(file_id, os.path.join(BASE_DIR, 'weights/depth_image_encoder.pth'))
         model = importlib.import_module("encoder")
         checkpoint = torch.load(os.path.join(BASE_DIR, 'weights/depth_image_encoder.pth'), map_location='cpu')
-        self.depth_image_encoder = model.Encoder(in_channels=1, encoded_space_dim=30, input_size=128)
+        self.encoded_space_dim=30
+        self.input_size = 128
+        self.depth_image_encoder = model.Encoder(in_channels=1, encoded_space_dim=self.encoded_space_dim, input_size=self.input_size)
         self.depth_image_encoder = self.depth_image_encoder#.cuda()
         self.depth_image_encoder.load_state_dict(checkpoint)
-        self.depth_image_encoder.eval() 
+        self.depth_image_encoder.eval()
         
-        self.depth_image_svm = pickle.load(open(os.path.join(BASE_DIR, 'weights/depth_image_svm.pickle'), 'rb'))
-        self.depth_image_svm = pickle.loads(self.depth_image_svm) 
+        self.stored_enoded_data, self.stored_encoded_labels = self.get_data(encoder=self.depth_image_encoder, location=os.path.join(BASE_DIR, 'stored_data/'))
         
     def camera_info_callback(self, msg):
         if self.rs_intrinsics is None:
@@ -119,12 +123,46 @@ class ChooseGraspPoseFromCandidates():
             grasp_index = np.argmin(distances)                
         elif self.classifier == "depth_image":
             print("Classifying the depth images")
+            depth_image_knn = KNeighborsClassifier(n_neighbors=10, weights="distance")
+            
+            rospack = rospkg.RosPack()
+            grasp_pckg_dir = rospack.get_path('grasp')
+            catkin_ws_dir = os.path.dirname(os.path.dirname(os.path.dirname(grasp_pckg_dir)))
+            saved_exp_dir = os.path.join(catkin_ws_dir, "saved_experiments")
+            print("Found ", len(self.stored_encoded_labels), "stored samples")
+            online_enoded_data, online_encoded_labels = self.get_data(encoder=self.depth_image_encoder, location=saved_exp_dir, online=True)
+            #online_enoded_data, online_encoded_labels = None, None #todo ADD NOW FOR EXPERIMENT
+            length_online_encoded_labels = len(online_encoded_labels) if online_encoded_labels is not None else 0
+            print("Found ", length_online_encoded_labels, "online samples")
+            if online_enoded_data is not None:
+                data_all = np.vstack([self.stored_enoded_data, online_enoded_data])
+                labels_all = np.vstack([self.stored_encoded_labels, online_encoded_labels])
+            else:
+                data_all = self.stored_enoded_data
+                labels_all = self.stored_encoded_labels
+            depth_image_knn.fit(data_all, labels_all.squeeze())
+            print("KNN FITTED")
             with torch.no_grad():
-                image_batch = torch.Tensor(np.array(depth_images).astype(np.float32))#.cuda()
-                image_batch = image_batch.transpose(3,1)
+                augmented_depth_images = []
+                augmentations = ['000','001','010','011','100','101','110','111']
+                for depth_image in depth_images:
+                    for augment in augmentations:
+                        if int(augment[2]) == 1:
+                            depth_image = cv2.rotate(depth_image, cv2.ROTATE_180)
+                        if int(augment[1]) == 1:
+                            depth_image = cv2.flip(depth_image, 0)#vertical
+                        if int(augment[0]) == 1:
+                            depth_image = cv2.flip(depth_image, 1)#horizontal
+                        augmented_depth_images.append(depth_image)
+                number_of_augmentations = len(augmentations)
+                image_batch = torch.Tensor(np.array(augmented_depth_images)[:, np.newaxis].astype(np.float32))#.cuda()
                 latent_space = self.depth_image_encoder(image_batch)
                 latent_space = latent_space.cpu().detach().numpy()
-                pred = self.depth_image_svm.predict_proba(latent_space)
+                distances_extended = np.repeat(distances, number_of_augmentations)
+                pred = depth_image_knn.predict_proba(np.hstack([latent_space, distances_extended[:, np.newaxis]]))
+                pred = pred.reshape(-1, number_of_augmentations, pred.shape[1])
+                pred = np.mean(pred, axis=1)
+                pred += 1e-10#Safety for log
                 pred = np.log(pred)#Same as pointcloud format
                 pred[:, [0, 1]] = pred[:, [1, 0]]#Swap from failure,success to success,failure
                 grasp_index = pred[:, 0].argmax()#class: success, failure
@@ -154,15 +192,15 @@ class ChooseGraspPoseFromCandidates():
             rot_matrix = np.array([[np.cos(theta), -np.sin(theta), 0],#Rotate around z to align with grasp pose
                        [np.sin(theta), np.cos(theta), 0],
                        [0, 0, 1]])
-            numpy_xyz = numpy_xyz@rot_matrix#np.dot(rot_matrix, numpy_xyz.T).T
+            numpy_xyz = numpy_xyz@rot_matrix
             indexes = np.all(np.abs(numpy_xyz) <= max_distance, axis=1)#Filter on distance
             numpy_xyz, numpy_rgb = numpy_xyz[indexes], numpy_rgb[indexes]
-        #numpy_xyz -= np.mean(numpy_xyz, axis=0)#Center around 0#todo not needed!
         numpy_xyz /= max_distance#Normalize
         depth_image = pointcloud2depthimage(copy.deepcopy(numpy_xyz))
+        depth_image = self.fix_depth_image(depth_image)
         
         if save:
-            thread = threading.Thread(target=self.save_pointcloud(numpy_xyz, numpy_rgb, file_name))
+            thread = threading.Thread(target=self.save_pointcloud(numpy_xyz, numpy_rgb, file_name, depth_image=depth_image))
             thread.start()
             
         return numpy_xyz, numpy_rgb, depth_image
@@ -191,9 +229,45 @@ class ChooseGraspPoseFromCandidates():
         for file in os.listdir(self.pointcloud_save_dir):
             if file.endswith(".txt") and not file.endswith(f"{skip}.txt"):
                 shutil.move(os.path.join(self.pointcloud_save_dir, file), os.path.join(pointcloud_unlabeled_dir, file))
+            elif file.endswith(".png") and not file.endswith(f"{skip}.png"):
+                shutil.move(os.path.join(self.pointcloud_save_dir, file), os.path.join(pointcloud_unlabeled_dir, file))
     
-    def save_pointcloud(self, numpy_xyz, numpy_rgb, file_name):
+    def save_pointcloud(self, numpy_xyz, numpy_rgb, file_name, depth_image=None):
         if not os.path.exists(self.pointcloud_save_dir):
                 os.makedirs(self.pointcloud_save_dir)
         xyzrgb = np.hstack((numpy_xyz, numpy_rgb))
         np.savetxt(os.path.join(self.pointcloud_save_dir, f"{file_name}.txt"), xyzrgb, delimiter=',')
+        if depth_image is not None:
+            cv2.imwrite(os.path.join(self.pointcloud_save_dir, f"{file_name}.png"), depth_image)
+    
+    def get_data(self, encoder, location, online=False):
+        labeled_dataset = CustomDataset(path=location, size=0.02, input_size=self.input_size, online=online)
+        if len(labeled_dataset) == 0:
+            return None, None
+        labeled_loader = DataLoader(dataset=labeled_dataset, batch_size=512, shuffle=True)
+        latent_space_all = np.array([]).reshape(0,self.encoded_space_dim)
+        labels_all = np.array([]).reshape(0,1)
+        distance_all = np.array([]).reshape(0,1)
+        for image_batch, labels, distance in labeled_loader:
+            encoded_data = encoder(image_batch)
+            latent_space = encoded_data.cpu().detach().numpy()
+            latent_space_all = np.vstack([latent_space_all,latent_space])
+            labels = labels.cpu().detach().numpy()
+            labels_all = np.vstack([labels_all,labels])
+            distance = distance.numpy()
+            distance_all = np.vstack([distance_all,distance])
+        stored_encoded_data = np.hstack([latent_space_all, distance_all])
+        stored_encoded_labels = labels_all
+        return stored_encoded_data, stored_encoded_labels
+    
+    def fix_depth_image(self, img):#todo not hardcode the numbers
+        old_size = 0.05#captured size
+        new_size = [0.02, 0.02]#y,x
+        img_size = img.shape[0]
+        img = img[int(img_size//2-new_size[0]/old_size/2*img_size):int(img_size//2+new_size[0]/old_size/2*img_size), int(img_size//2-new_size[1]/old_size/2*img_size):int(img_size//2+new_size[1]/old_size/2*img_size)]
+        img = cv2.resize(img, (128, 128), interpolation = cv2.INTER_AREA)
+
+        normalize_value = np.max(img)
+        nonzero_rows, nonzero_cols = np.where(img != 0)
+        img[nonzero_rows, nonzero_cols] = cv2.add(img[nonzero_rows, nonzero_cols], int(255-normalize_value)).squeeze()
+        return img
