@@ -10,6 +10,7 @@ import quaternion
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion, WrenchStamped
 from std_msgs.msg import Float32MultiArray, Float32, String
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from sensor_msgs.msg import JointState
 import moveit_commander
 import moveit_msgs.msg
 import dynamic_reconfigure.client
@@ -266,7 +267,7 @@ class Planner(object):
             grasp_pose.pose.position.z = grasp_pose.pose.position.z - 0.01# + little extra
             if self.go_to_pose(goal_pose=pre_grasp_pose, move_group=self.move_group_ee, allow_flip=True) == "success":#Go to pre grasp pose
                 if self.go_to_pose(goal_pose=grasp_pose, move_group=self.move_group_ee, controller = "impedance") == "success":#Go to grasp pose
-                    if self.close_gripper() == "success":#Grasp
+                    if self.close_gripper(save=True) == "success":#Grasp
                         post_grasp_pose = copy.deepcopy(supplied_grasp_pose)
                         post_grasp_pose.pose.position.z = post_grasp_pose.pose.position.z + 0.25
                         return self.go_to_pose(goal_pose=post_grasp_pose, move_group=self.move_group_ee, allow_flip=True)#retreat
@@ -298,7 +299,7 @@ class Planner(object):
         result =  self.gripper_move_action.get_result()
         return "success" if result else "failure"
     
-    def close_gripper(self):
+    def close_gripper(self, save=False):
         self.gripper_grasp_action.wait_for_server()
         gripper = franka_gripper.msg.GraspGoal()
         gripper.width = 0.001
@@ -310,7 +311,18 @@ class Planner(object):
         self.gripper_grasp_action.send_goal(gripper)
         self.gripper_grasp_action.wait_for_result()
         result =  self.gripper_grasp_action.get_result()
-        return "success" if result else "failure"
+        
+        if save:
+            gripper_width = rospy.wait_for_message("franka_gripper/joint_states", JointState, timeout=5)
+            gripper_width = gripper_width.position[0]
+            rospack = rospkg.RosPack()
+            grasp_pckg_dir = rospack.get_path('grasp')
+            catkin_ws_dir = os.path.dirname(os.path.dirname(os.path.dirname(grasp_pckg_dir)))
+            pointcloud_dir = os.path.join(catkin_ws_dir, "experiments/pointcloud")
+            with open(os.path.join(pointcloud_dir, "gripper_width_at_grasp.txt"), 'w') as file:
+                file.write(str(gripper_width))  
+        
+        return "success"
     
     def check_grasp_success(self, save=True):
         force_data = rospy.wait_for_message("franka_state_controller/F_ext", WrenchStamped, timeout=5)
@@ -334,7 +346,7 @@ class Planner(object):
                 os.makedirs(pointcloud_failure_dir)
             file_list = list()
             for file in os.listdir(pointcloud_dir):
-                if file.endswith(".txt"):
+                if file.endswith(".txt") and not file.startswith("gripper"):
                     file_list.append(file)
             if len(file_list) > 1:
                 print("MORE THAN ONE UNLABELED POINTCLOUD, CHECK WHAT IS GOING ON!!!")
@@ -344,7 +356,13 @@ class Planner(object):
                 dest_dir = pointcloud_success_dir
             else:
                 dest_dir = pointcloud_failure_dir 
-            shutil.move(file_path, os.path.join(dest_dir, file_list[0]))     
+            shutil.move(file_path, os.path.join(dest_dir, file_list[0]))
+            file_path_depth_image = file_path[:-4]+".png"
+            shutil.move(file_path_depth_image, os.path.join(dest_dir, file_list[0][:-4]+".png")) 
+            distances = np.load(os.path.join(pointcloud_dir, "distances.npy")) 
+            distance = distances[int(file_list[0][-5])]
+            with open(os.path.join(dest_dir, file_list[0][:-4]+"distance.txt"), 'w') as file:
+                file.write(str(distance))     
         return "success"# if result else "failure" #Just return success
     
     def switch_controller(self, new_controller):
