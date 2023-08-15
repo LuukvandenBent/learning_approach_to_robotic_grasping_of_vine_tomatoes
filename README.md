@@ -19,7 +19,6 @@ You will need to have a ROS workspace setup:
 ```
 mkdir -p ~/learning_approach_to_robotic_grasping_of_vine_tomatoes_ws/src
 cd ~/learning_approach_to_robotic_grasping_of_vine_tomatoes_ws/
-catkin build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF
 ```
 #### 1.1.2 Download the source code
 ```
@@ -34,7 +33,8 @@ cd ../..
 ```
 #### 1.1.3 Build and launch
 ```
-catkin build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF
+catkin_make -DBUILD_TESTS=OFF -DFranka_DIR:PATH=<path/to/libfranka/build>
+catkin_make -DBUILD_TESTS=OFF -DFranka_DIR:PATH=~/libfranka/build 
 source/devel/setup.bash
 roslaunch panda_moveit_config_vine_tomato launch_moveit.launch robot_ip:=<robot_ip>
 ```
@@ -85,7 +85,8 @@ export ROS_HOSTNAME=172.16.0.30
 ```
 #### 1.2.4 Build and launch
 ```
-catkin build
+catkin build -DPCL_DIR:PATH=<path/to/pcl>
+catkin build -DPCL_DIR:PATH=/usr/lib/x86_64-linux-gnu/cmake/pcl
 source devel/setup.bash
 roslaunch grasp vine_grasping.launch
 ```
