@@ -24,6 +24,9 @@ cd ~/learning_approach_to_robotic_grasping_of_vine_tomatoes_ws/
 ```
 cd ~/learning_approach_to_robotic_grasping_of_vine_tomatoes_ws/src
 git clone https://github.com/LuukvandenBent/franka_ros_vine_tomato.git
+cd src/franka_ros_vine_tomato
+git clone https://github.com/franzesegiovanni/franka_human_friendly_controllers.git
+cd ..
 git clone https://github.com/LuukvandenBent/panda_moveit_config_vine_tomato.git
 git clone https://github.com/LuukvandenBent/moveit_calibration_vine_tomato.git
 git clone https://github.com/IntelRealSense/realsense-ros.git
