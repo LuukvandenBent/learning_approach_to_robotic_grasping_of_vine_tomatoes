@@ -59,7 +59,7 @@ class ChooseGraspPoseFromCandidates():
         self.depth_image_encoder.load_state_dict(checkpoint)
         self.depth_image_encoder.eval()
         
-        self.stored_enoded_data, self.stored_encoded_labels = self.get_data(encoder=self.depth_image_encoder, location=os.path.join(BASE_DIR, 'stored_data/'))
+        self.stored_encoded_data, self.stored_encoded_labels = self.get_data(encoder=self.depth_image_encoder, location=os.path.join(BASE_DIR, 'stored_data/'))
         
     def camera_info_callback(self, msg):
         if self.rs_intrinsics is None:
@@ -131,15 +131,15 @@ class ChooseGraspPoseFromCandidates():
             saved_exp_dir = os.path.join(catkin_ws_dir, "saved_experiments")
             length_stored_encoded_labels = len(self.stored_encoded_labels) if self.stored_encoded_labels is not None else 0
             print("Found ", length_stored_encoded_labels, "stored samples")
-            online_enoded_data, online_encoded_labels = self.get_data(encoder=self.depth_image_encoder, location=saved_exp_dir, online=True)
-            #online_enoded_data, online_encoded_labels = None, None #todo ADD NOW FOR EXPERIMENT
+            online_encoded_data, online_encoded_labels = self.get_data(encoder=self.depth_image_encoder, location=saved_exp_dir, online=True)
+            #online_encoded_data, online_encoded_labels = None, None #todo ADD NOW FOR EXPERIMENT
             length_online_encoded_labels = len(online_encoded_labels) if online_encoded_labels is not None else 0
             print("Found ", length_online_encoded_labels, "online samples")
-            if online_enoded_data is not None:
-                data_all = np.vstack([self.stored_enoded_data, online_enoded_data])
+            if online_encoded_data is not None:
+                data_all = np.vstack([self.stored_encoded_data, online_encoded_data])
                 labels_all = np.vstack([self.stored_encoded_labels, online_encoded_labels])
             elif self.stored_encoded_data is not None:
-                data_all = self.stored_enoded_data
+                data_all = self.stored_encoded_data
                 labels_all = self.stored_encoded_labels
             else:
                 data_all = None

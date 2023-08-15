@@ -29,44 +29,45 @@ class CustomDataset(Dataset):
                                 img_path = os.path.join(os.path.join(dirpath, "pointcloud/failure"), failure_pc[0][:-4]+".png")
                                 class_name = "failure"
                             if img_path is not None:
-                                self.data.append([img_path, class_name, '000'])
-                                self.data.append([img_path, class_name, '001'])
-                                self.data.append([img_path, class_name, '010'])
-                                self.data.append([img_path, class_name, '011'])
-                                self.data.append([img_path, class_name, '100'])
-                                self.data.append([img_path, class_name, '101'])
-                                self.data.append([img_path, class_name, '110'])
-                                self.data.append([img_path, class_name, '111'])                        
+                                self.data.append([img_path, class_name, '000', "online"])
+                                self.data.append([img_path, class_name, '001', "online"])
+                                self.data.append([img_path, class_name, '010', "online"])
+                                self.data.append([img_path, class_name, '011', "online"])
+                                self.data.append([img_path, class_name, '100', "online"])
+                                self.data.append([img_path, class_name, '101', "online"])
+                                self.data.append([img_path, class_name, '110', "online"])
+                                self.data.append([img_path, class_name, '111', "online"])                        
         else:
             for class_path in file_list:
                 class_name = class_path.split("/")[-1]
                 img_paths = glob.glob(class_path + "/*.png")
                 for img_path in img_paths:
-                    self.data.append([img_path, class_name, '000'])
-                    self.data.append([img_path, class_name, '001'])
-                    self.data.append([img_path, class_name, '010'])
-                    self.data.append([img_path, class_name, '011'])
-                    self.data.append([img_path, class_name, '100'])
-                    self.data.append([img_path, class_name, '101'])
-                    self.data.append([img_path, class_name, '110'])
-                    self.data.append([img_path, class_name, '111'])
+                    self.data.append([img_path, class_name, '000', "offline"])
+                    self.data.append([img_path, class_name, '001', "offline"])
+                    self.data.append([img_path, class_name, '010', "offline"])
+                    self.data.append([img_path, class_name, '011', "offline"])
+                    self.data.append([img_path, class_name, '100', "offline"])
+                    self.data.append([img_path, class_name, '101', "offline"])
+                    self.data.append([img_path, class_name, '110', "offline"])
+                    self.data.append([img_path, class_name, '111', "offline"])
         self.class_map = {"failure" : 0, "success" : 1}
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
-        img_path, class_name, augment = self.data[idx]
+        img_path, class_name, augment, online_or_offline = self.data[idx]
         img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-        old_size = 0.05#captured size
-        new_size = [self.size, self.size]#y,x
-        img_size = img.shape[0]
-        img = img[int(img_size//2-new_size[0]/old_size/2*img_size):int(img_size//2+new_size[0]/old_size/2*img_size), int(img_size//2-new_size[1]/old_size/2*img_size):int(img_size//2+new_size[1]/old_size/2*img_size)]
-        img = cv2.resize(img, (self.input_size, self.input_size), interpolation = cv2.INTER_AREA)
+        if online_or_offline == "offline":
+            old_size = 0.05#captured size
+            new_size = [self.size, self.size]#y,x
+            img_size = img.shape[0]
+            img = img[int(img_size//2-new_size[0]/old_size/2*img_size):int(img_size//2+new_size[0]/old_size/2*img_size), int(img_size//2-new_size[1]/old_size/2*img_size):int(img_size//2+new_size[1]/old_size/2*img_size)]
+            img = cv2.resize(img, (self.input_size, self.input_size), interpolation = cv2.INTER_AREA)
 
-        normalize_value = np.max(img)
-        nonzero_rows, nonzero_cols = np.where(img != 0)
-        img[nonzero_rows, nonzero_cols] = cv2.add(img[nonzero_rows, nonzero_cols], int(255-normalize_value)).squeeze()
+            normalize_value = np.max(img)
+            nonzero_rows, nonzero_cols = np.where(img != 0)
+            img[nonzero_rows, nonzero_cols] = cv2.add(img[nonzero_rows, nonzero_cols], int(255-normalize_value)).squeeze()
 
         distance = 0
         with open(img_path[:-4]+"distance.txt", 'r') as file:
