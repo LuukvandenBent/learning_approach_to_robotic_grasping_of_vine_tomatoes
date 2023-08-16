@@ -129,7 +129,8 @@ class ChooseGraspPoseFromCandidates():
             grasp_pckg_dir = rospack.get_path('grasp')
             catkin_ws_dir = os.path.dirname(os.path.dirname(os.path.dirname(grasp_pckg_dir)))
             saved_exp_dir = os.path.join(catkin_ws_dir, "saved_experiments")
-            print("Found ", len(self.stored_encoded_labels), "stored samples")
+            length_stored_encoded_labels = len(self.stored_encoded_labels) if self.stored_encoded_labels is not None else 0
+            print("Found ", length_stored_encoded_labels, "stored samples")
             online_enoded_data, online_encoded_labels = self.get_data(encoder=self.depth_image_encoder, location=saved_exp_dir, online=True)
             #online_enoded_data, online_encoded_labels = None, None #todo ADD NOW FOR EXPERIMENT
             length_online_encoded_labels = len(online_encoded_labels) if online_encoded_labels is not None else 0
@@ -137,36 +138,42 @@ class ChooseGraspPoseFromCandidates():
             if online_enoded_data is not None:
                 data_all = np.vstack([self.stored_enoded_data, online_enoded_data])
                 labels_all = np.vstack([self.stored_encoded_labels, online_encoded_labels])
-            else:
+            elif self.stored_encoded_data is not None:
                 data_all = self.stored_enoded_data
                 labels_all = self.stored_encoded_labels
-            depth_image_knn.fit(data_all, labels_all.squeeze())
-            print("KNN FITTED")
-            with torch.no_grad():
-                augmented_depth_images = []
-                augmentations = ['000','001','010','011','100','101','110','111']
-                for depth_image in depth_images:
-                    for augment in augmentations:
-                        if int(augment[2]) == 1:
-                            depth_image = cv2.rotate(depth_image, cv2.ROTATE_180)
-                        if int(augment[1]) == 1:
-                            depth_image = cv2.flip(depth_image, 0)#vertical
-                        if int(augment[0]) == 1:
-                            depth_image = cv2.flip(depth_image, 1)#horizontal
-                        augmented_depth_images.append(depth_image)
-                number_of_augmentations = len(augmentations)
-                image_batch = torch.Tensor(np.array(augmented_depth_images)[:, np.newaxis].astype(np.float32))#.cuda()
-                latent_space = self.depth_image_encoder(image_batch)
-                latent_space = latent_space.cpu().detach().numpy()
-                distances_extended = np.repeat(distances, number_of_augmentations)
-                pred = depth_image_knn.predict_proba(np.hstack([latent_space, distances_extended[:, np.newaxis]]))
-                pred = pred.reshape(-1, number_of_augmentations, pred.shape[1])
-                pred = np.mean(pred, axis=1)
-                pred += 1e-10#Safety for log
-                pred = np.log(pred)#Same as pointcloud format
-                pred[:, [0, 1]] = pred[:, [1, 0]]#Swap from failure,success to success,failure
-                grasp_index = pred[:, 0].argmax()#class: success, failure
-            pass
+            else:
+                data_all = None
+                labels_all = None
+            if data_all is not None:
+                depth_image_knn.fit(data_all, labels_all.squeeze())
+                print("KNN FITTED")
+                with torch.no_grad():
+                    augmented_depth_images = []
+                    augmentations = ['000','001','010','011','100','101','110','111']
+                    for depth_image in depth_images:
+                        for augment in augmentations:
+                            if int(augment[2]) == 1:
+                                depth_image = cv2.rotate(depth_image, cv2.ROTATE_180)
+                            if int(augment[1]) == 1:
+                                depth_image = cv2.flip(depth_image, 0)#vertical
+                            if int(augment[0]) == 1:
+                                depth_image = cv2.flip(depth_image, 1)#horizontal
+                            augmented_depth_images.append(depth_image)
+                    number_of_augmentations = len(augmentations)
+                    image_batch = torch.Tensor(np.array(augmented_depth_images)[:, np.newaxis].astype(np.float32))#.cuda()
+                    latent_space = self.depth_image_encoder(image_batch)
+                    latent_space = latent_space.cpu().detach().numpy()
+                    distances_extended = np.repeat(distances, number_of_augmentations)
+                    pred = depth_image_knn.predict_proba(np.hstack([latent_space, distances_extended[:, np.newaxis]]))
+                    pred = pred.reshape(-1, number_of_augmentations, pred.shape[1])
+                    pred = np.mean(pred, axis=1)
+                    pred += 1e-10#Safety for log
+                    pred = np.log(pred)#Same as pointcloud format
+                    pred[:, [0, 1]] = pred[:, [1, 0]]#Swap from failure,success to success,failure
+                    grasp_index = pred[:, 0].argmax()#class: success, failure
+            else:
+                print("no stored or online data to compute, chosing random grasp point")
+                grasp_index = np.random.randint(0, number_candidates) 
         else:
             print("No valid classifier, chosing a random one grasp point !!")
             grasp_index = np.random.randint(0, number_candidates)
